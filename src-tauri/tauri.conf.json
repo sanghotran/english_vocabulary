@@ -5,8 +5,7 @@
   "build": {
     "beforeDevCommand": "",
     "beforeBuildCommand": "",
-    "frontendDist": "../",
-    "devUrl": "../"
+    "frontendDist": "../"
   },
   "app": {
     "withGlobalTauri": true,
