@@ -229,14 +229,34 @@ async fn call_groq(
     Ok(json)
 }
 
+#[tauri::command]
+async fn get_groq_models(api_key: String) -> Result<serde_json::Value, String> {
+    let client = reqwest::Client::new();
+    let res = client.get("https://api.groq.com/openai/v1/models")
+        .header("Authorization", format!("Bearer {}", api_key))
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if !res.status().is_success() {
+        let err_text = res.text().await.unwrap_or_default();
+        return Err(format!("Groq API status error: {}", err_text));
+    }
+
+    let json: serde_json::Value = res.json().await.map_err(|e| e.to_string())?;
+    Ok(json)
+}
+
 // --- MAIN RUNNER ---
 
 fn main() {
     tauri::Builder::default()
         .setup(|app| {
-            // Get local app data folder path
-            let app_dir = app.path().app_data_dir().expect("failed to get app data dir");
-            std::fs::create_dir_all(&app_dir).unwrap();
+            // Get directory of the running executable
+            let exe_path = std::env::current_exe()?;
+            let app_dir = exe_path.parent().ok_or_else(|| {
+                std::io::Error::new(std::io::ErrorKind::NotFound, "Failed to get executable directory")
+            })?;
             let db_path = app_dir.join("database.db");
             println!("SQLite Database Path: {:?}", db_path);
 
@@ -291,7 +311,8 @@ fn main() {
             save_vocab,
             delete_vocab,
             update_review,
-            call_groq
+            call_groq,
+            get_groq_models
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

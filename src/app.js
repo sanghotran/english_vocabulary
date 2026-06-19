@@ -11,7 +11,8 @@ if (window.__TAURI__) {
     updateReview: (id, interval, easeFactor, repetitions, nextReview) => 
       invoke('update_review', { id, interval, easeFactor, repetitions, nextReview }),
     callGroq: ({ apiKey, model, messages, responseFormat }) => 
-      invoke('call_groq', { apiKey, model, messages, responseFormat })
+      invoke('call_groq', { apiKey, model, messages, responseFormat }),
+    getGroqModels: (apiKey) => invoke('get_groq_models', { apiKey })
   };
 }
 
@@ -167,13 +168,82 @@ function logToConsole(element, message, type = 'system') {
 }
 
 // --- CONFIGURATION & SETTINGS SERVICE ---
+const FALLBACK_GROQ_MODELS = [
+  { id: 'llama-3.3-70b-versatile', name: 'Llama 3.3 70B Versatile (Recommended)' },
+  { id: 'llama-3.1-8b-instant', name: 'Llama 3.1 8B Instant' },
+  { id: 'openai/gpt-oss-120b', name: 'GPT OSS 120B' },
+  { id: 'openai/gpt-oss-20b', name: 'GPT OSS 20B' },
+  { id: 'meta-llama/llama-4-scout-17b-16e-instruct', name: 'Llama 4 Scout 17B (Preview)' },
+  { id: 'qwen/qwen3-32b', name: 'Qwen3 32B (Preview)' },
+  { id: 'qwen/qwen3.6-27b', name: 'Qwen3.6 27B (Preview)' }
+];
+
+async function populateGroqModels(apiKey, selectedModel) {
+  const selectEl = elements.settingsGroqModel;
+  if (!selectEl) return;
+
+  let models = [...FALLBACK_GROQ_MODELS];
+
+  if (apiKey && apiKey.trim() && window.api && window.api.getGroqModels) {
+    try {
+      const response = await window.api.getGroqModels(apiKey);
+      if (response && response.data) {
+        // Exclude audio / whisper models or guardrail models
+        const apiModels = response.data
+          .filter(m => !m.id.includes('whisper') && !m.id.includes('guard'))
+          .map(m => {
+            let label = m.id;
+            if (label.startsWith('meta-llama/')) {
+              label = label.replace('meta-llama/', 'Meta-Llama: ');
+            } else if (label.startsWith('openai/')) {
+              label = label.replace('openai/', 'OpenAI: ');
+            } else if (label.startsWith('qwen/')) {
+              label = label.replace('qwen/', 'Qwen: ');
+            } else {
+              label = label.split('-').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+            }
+            return { id: m.id, name: label };
+          });
+        
+        if (apiModels.length > 0) {
+          apiModels.sort((a, b) => a.name.localeCompare(b.name));
+          models = apiModels;
+        }
+      }
+    } catch (err) {
+      console.warn("Failed to fetch Groq models, using fallback list:", err);
+    }
+  }
+
+  // Clear and update select options
+  selectEl.innerHTML = '';
+  models.forEach(model => {
+    const opt = document.createElement('option');
+    opt.value = model.id;
+    opt.textContent = model.name;
+    if (model.id === selectedModel) {
+      opt.selected = true;
+    }
+    selectEl.appendChild(opt);
+  });
+
+  // If selected model is not in the models list, append it as option
+  if (selectedModel && !models.some(m => m.id === selectedModel)) {
+    const opt = document.createElement('option');
+    opt.value = selectedModel;
+    opt.textContent = `${selectedModel} (Saved)`;
+    opt.selected = true;
+    selectEl.appendChild(opt);
+  }
+}
+
 async function loadSettings() {
   // API Key Settings
-  const apiKey = await window.api.getSetting('groq-key') || '';
-  const model = await window.api.getSetting('groq-model') || 'llama-3.3-70b-versatile';
+  const apiKey = (window.api && await window.api.getSetting('groq-key')) || '';
+  const model = (window.api && await window.api.getSetting('groq-model')) || 'llama-3.3-70b-versatile';
   
   elements.settingsGroqKey.value = apiKey;
-  elements.settingsGroqModel.value = model;
+  await populateGroqModels(apiKey, model);
   
   updateGroqStatus(apiKey);
 
@@ -1361,6 +1431,9 @@ function setupBackupHandlers() {
 
     await window.api.setSetting('groq-key', apiKey);
     await window.api.setSetting('groq-model', model);
+    
+    // Refresh models list dynamically based on the newly saved API Key
+    await populateGroqModels(apiKey, model);
     
     updateGroqStatus(apiKey);
     alert('AI integration settings saved.');
