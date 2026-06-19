@@ -248,9 +248,15 @@ async function loadSettings() {
   updateGroqStatus(apiKey);
 
   // Audio Settings
-  audioSettings.voiceURI = await window.api.getSetting('audio-voice-uri') || '';
-  audioSettings.rate = parseFloat(await window.api.getSetting('audio-rate') || '1.0');
-  audioSettings.pitch = parseFloat(await window.api.getSetting('audio-pitch') || '1.0');
+  if (window.api) {
+    audioSettings.voiceURI = await window.api.getSetting('audio-voice-uri') || '';
+    audioSettings.rate = parseFloat(await window.api.getSetting('audio-rate') || '1.0');
+    audioSettings.pitch = parseFloat(await window.api.getSetting('audio-pitch') || '1.0');
+  } else {
+    audioSettings.voiceURI = '';
+    audioSettings.rate = 1.0;
+    audioSettings.pitch = 1.0;
+  }
   
   elements.settingsAudioRate.value = audioSettings.rate;
   elements.valAudioRate.textContent = audioSettings.rate.toFixed(1);
@@ -270,28 +276,47 @@ function updateGroqStatus(apiKey) {
 
 // --- TEXT-TO-SPEECH AUDIO ENGINE ---
 function setupAudioEngine() {
-  const populateVoices = () => {
-    availableVoices = window.speechSynthesis.getVoices();
-    elements.settingsAudioVoice.innerHTML = '';
-    
-    // Prioritize English voices
-    const sortedVoices = [...availableVoices].sort((a, b) => {
-      const aIsEn = a.lang.startsWith('en');
-      const bIsEn = b.lang.startsWith('en');
-      if (aIsEn && !bIsEn) return -1;
-      if (!aIsEn && bIsEn) return 1;
-      return a.name.localeCompare(b.name);
+  if (typeof window.speechSynthesis === 'undefined') {
+    console.warn('Speech synthesis is not supported on this platform.');
+    if (elements.settingsAudioVoice) {
+      elements.settingsAudioVoice.innerHTML = '<option value="">Not supported on this platform</option>';
+    }
+    // Still bind rate/pitch/test handlers so they don't throw errors
+    elements.settingsAudioRate.addEventListener('input', (e) => {
+      elements.valAudioRate.textContent = parseFloat(e.target.value).toFixed(1);
     });
+    elements.settingsAudioPitch.addEventListener('input', (e) => {
+      elements.valAudioPitch.textContent = parseFloat(e.target.value).toFixed(1);
+    });
+    return;
+  }
 
-    sortedVoices.forEach(voice => {
-      const option = document.createElement('option');
-      option.value = voice.voiceURI;
-      option.textContent = `${voice.name} (${voice.lang})${voice.localService ? ' - Local' : ''}`;
-      if (voice.voiceURI === audioSettings.voiceURI) {
-        option.selected = true;
-      }
-      elements.settingsAudioVoice.appendChild(option);
-    });
+  const populateVoices = () => {
+    try {
+      availableVoices = window.speechSynthesis.getVoices();
+      elements.settingsAudioVoice.innerHTML = '';
+      
+      // Prioritize English voices
+      const sortedVoices = [...availableVoices].sort((a, b) => {
+        const aIsEn = a.lang.startsWith('en');
+        const bIsEn = b.lang.startsWith('en');
+        if (aIsEn && !bIsEn) return -1;
+        if (!aIsEn && bIsEn) return 1;
+        return a.name.localeCompare(b.name);
+      });
+
+      sortedVoices.forEach(voice => {
+        const option = document.createElement('option');
+        option.value = voice.voiceURI;
+        option.textContent = `${voice.name} (${voice.lang})${voice.localService ? ' - Local' : ''}`;
+        if (voice.voiceURI === audioSettings.voiceURI) {
+          option.selected = true;
+        }
+        elements.settingsAudioVoice.appendChild(option);
+      });
+    } catch (err) {
+      console.warn("Failed to populate voices:", err);
+    }
   };
 
   populateVoices();
@@ -309,46 +334,56 @@ function setupAudioEngine() {
 
   // Test Speech button
   elements.btnTestSpeech.addEventListener('click', () => {
-    const tempUtterance = new SpeechSynthesisUtterance('Meticulous. Meticulous translation evaluation works.');
-    const selectedVoiceURI = elements.settingsAudioVoice.value;
-    const voice = availableVoices.find(v => v.voiceURI === selectedVoiceURI);
-    if (voice) tempUtterance.voice = voice;
-    tempUtterance.rate = parseFloat(elements.settingsAudioRate.value);
-    tempUtterance.pitch = parseFloat(elements.settingsAudioPitch.value);
-    window.speechSynthesis.speak(tempUtterance);
+    try {
+      const tempUtterance = new SpeechSynthesisUtterance('Meticulous. Meticulous translation evaluation works.');
+      const selectedVoiceURI = elements.settingsAudioVoice.value;
+      const voice = availableVoices.find(v => v.voiceURI === selectedVoiceURI);
+      if (voice) tempUtterance.voice = voice;
+      tempUtterance.rate = parseFloat(elements.settingsAudioRate.value);
+      tempUtterance.pitch = parseFloat(elements.settingsAudioPitch.value);
+      window.speechSynthesis.speak(tempUtterance);
+    } catch (err) {
+      console.warn("Speech test failed:", err);
+    }
   });
 
   // Save Audio button
   elements.btnSaveAudioSettings.addEventListener('click', async () => {
-    audioSettings.voiceURI = elements.settingsAudioVoice.value;
-    audioSettings.rate = parseFloat(elements.settingsAudioRate.value);
-    audioSettings.pitch = parseFloat(elements.settingsAudioPitch.value);
-    
-    await window.api.setSetting('audio-voice-uri', audioSettings.voiceURI);
-    await window.api.setSetting('audio-rate', audioSettings.rate.toString());
-    await window.api.setSetting('audio-pitch', audioSettings.pitch.toString());
-    
-    alert('Audio settings saved successfully.');
+    if (window.api) {
+      audioSettings.voiceURI = elements.settingsAudioVoice.value;
+      audioSettings.rate = parseFloat(elements.settingsAudioRate.value);
+      audioSettings.pitch = parseFloat(elements.settingsAudioPitch.value);
+      
+      await window.api.setSetting('audio-voice-uri', audioSettings.voiceURI);
+      await window.api.setSetting('audio-rate', audioSettings.rate.toString());
+      await window.api.setSetting('audio-pitch', audioSettings.pitch.toString());
+      
+      alert('Audio settings saved successfully.');
+    }
   });
 }
 
 function speak(text) {
-  if (!text) return;
-  // Cancel current speech
-  window.speechSynthesis.cancel();
-  
-  const utterance = new SpeechSynthesisUtterance(text);
-  const voice = availableVoices.find(v => v.voiceURI === audioSettings.voiceURI);
-  if (voice) {
-    utterance.voice = voice;
-  } else {
-    // Fallback to first available English voice
-    const enVoice = availableVoices.find(v => v.lang.startsWith('en'));
-    if (enVoice) utterance.voice = enVoice;
+  if (!text || typeof window.speechSynthesis === 'undefined') return;
+  try {
+    // Cancel current speech
+    window.speechSynthesis.cancel();
+    
+    const utterance = new SpeechSynthesisUtterance(text);
+    const voice = availableVoices.find(v => v.voiceURI === audioSettings.voiceURI);
+    if (voice) {
+      utterance.voice = voice;
+    } else {
+      // Fallback to first available English voice
+      const enVoice = availableVoices.find(v => v.lang.startsWith('en'));
+      if (enVoice) utterance.voice = enVoice;
+    }
+    utterance.rate = audioSettings.rate;
+    utterance.pitch = audioSettings.pitch;
+    window.speechSynthesis.speak(utterance);
+  } catch (err) {
+    console.warn("Speech synthesis speak failed:", err);
   }
-  utterance.rate = audioSettings.rate;
-  utterance.pitch = audioSettings.pitch;
-  window.speechSynthesis.speak(utterance);
 }
 
 // --- TABS & NAVIGATION ---
@@ -379,7 +414,14 @@ async function switchTab(tabName) {
   if (activePanel) activePanel.classList.add('active');
   
   // Format title header
-  elements.pageTitle.textContent = activeBtn ? activeBtn.textContent.trim() : 'Dashboard';
+  const tabTitles = {
+    'dashboard': 'Dashboard',
+    'add-word': 'Add Word',
+    'library': 'Library',
+    'review': 'Review Arena',
+    'settings': 'Settings'
+  };
+  elements.pageTitle.textContent = tabTitles[tabName] || 'Dashboard';
   
   // Tab-specific lifecycle hooks
   if (tabName === 'dashboard') {
@@ -885,14 +927,18 @@ function loadActiveCard() {
 function transitionToStage(stageNum) {
   // Hide all panels
   elements.reviewStage1.classList.remove('active');
+  elements.reviewStage1.classList.add('hide');
   elements.reviewStage2.classList.remove('active');
+  elements.reviewStage2.classList.add('hide');
   elements.reviewStage3.classList.remove('active');
+  elements.reviewStage3.classList.add('hide');
   
   const vocab = activeReviewQueue[currentReviewIndex];
 
   if (stageNum === 1) {
     elements.reviewCardStageName.textContent = 'Step 1: Write Word';
     elements.reviewStage1.classList.add('active');
+    elements.reviewStage1.classList.remove('hide');
     
     // Clear inputs & feedback
     elements.reviewS1Input.value = '';
@@ -918,6 +964,7 @@ function transitionToStage(stageNum) {
   } else if (stageNum === 2) {
     elements.reviewCardStageName.textContent = 'Step 2: Related Words';
     elements.reviewStage2.classList.add('active');
+    elements.reviewStage2.classList.remove('hide');
     
     // Clear inputs & feedback
     elements.reviewS2Input.value = '';
@@ -936,6 +983,7 @@ function transitionToStage(stageNum) {
   } else if (stageNum === 3) {
     elements.reviewCardStageName.textContent = 'Step 3: Translate Sentence';
     elements.reviewStage3.classList.add('active');
+    elements.reviewStage3.classList.remove('hide');
     
     // Clear inputs & feedback
     elements.reviewS3Input.value = '';
