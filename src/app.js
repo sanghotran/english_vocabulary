@@ -1482,7 +1482,7 @@ function setupBackupHandlers() {
         }
 
         // Restore settings
-        if (importData.settings) {
+        if (importData.settings && window.api) {
           for (const [key, value] of Object.entries(importData.settings)) {
             await window.api.setSetting(key, value);
           }
@@ -1490,19 +1490,21 @@ function setupBackupHandlers() {
 
         // Restore Vocabs
         let successCount = 0;
-        for (const vocab of importData.vocabularies) {
-          // Reset ID to let SQLite generate fresh auto-increment IDs and avoid conflicts, 
-          // or retain if overwriting. Let's strip the ID to safely append items.
-          const cleanVocab = {
-            main_word: vocab.main_word,
-            ipa: vocab.ipa,
-            translation: vocab.translation,
-            example_sentence_vi: vocab.example_sentence_vi,
-            example_sentence_en: vocab.example_sentence_en,
-            related_words: vocab.related_words || []
-          };
-          const result = await window.api.saveVocab(cleanVocab);
-          if (result.success) successCount++;
+        if (window.api) {
+          for (const vocab of importData.vocabularies) {
+            // Reset ID to let SQLite generate fresh auto-increment IDs and avoid conflicts, 
+            // or retain if overwriting. Let's strip the ID to safely append items.
+            const cleanVocab = {
+              main_word: vocab.main_word,
+              ipa: vocab.ipa,
+              translation: vocab.translation,
+              example_sentence_vi: vocab.example_sentence_vi,
+              example_sentence_en: vocab.example_sentence_en,
+              related_words: vocab.related_words || []
+            };
+            const result = await window.api.saveVocab(cleanVocab);
+            if (result.success) successCount++;
+          }
         }
 
         alert(`Database import completed! Successfully imported/updated ${successCount} words.`);
@@ -1520,14 +1522,24 @@ function setupBackupHandlers() {
     const apiKey = elements.settingsGroqKey.value.trim();
     const model = elements.settingsGroqModel.value;
 
-    await window.api.setSetting('groq-key', apiKey);
-    await window.api.setSetting('groq-model', model);
-    
-    // Refresh models list dynamically based on the newly saved API Key
-    await populateGroqModels(apiKey, model);
-    
-    updateGroqStatus(apiKey);
-    alert('AI integration settings saved.');
+    try {
+      if (window.api) {
+        await window.api.setSetting('groq-key', apiKey);
+        await window.api.setSetting('groq-model', model);
+        console.log("Saved settings to database. Key length:", apiKey.length);
+      } else {
+        console.warn("window.api is not available; settings saved only in memory.");
+      }
+      
+      // Refresh models list dynamically based on the newly saved API Key
+      await populateGroqModels(apiKey, model);
+      
+      updateGroqStatus(apiKey);
+      alert('AI integration settings saved.');
+    } catch (err) {
+      console.error("Failed to save AI settings to database:", err);
+      alert(`Failed to save settings: ${err.message}`);
+    }
   });
 
   // Toggle Key Visibility
