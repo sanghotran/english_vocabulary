@@ -22,7 +22,13 @@ console.log = function(...args) {
 
 console.error = function(...args) {
   originalError.apply(console, args);
-  writeToDebugConsole(args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' '), 'error');
+  const formatted = args.map(a => {
+    if (a instanceof Error) {
+      return `${a.name}: ${a.message}\n${a.stack}`;
+    }
+    return typeof a === 'object' ? JSON.stringify(a) : a;
+  });
+  writeToDebugConsole(formatted.join(' '), 'error');
 };
 
 console.warn = function(...args) {
@@ -86,7 +92,7 @@ const elements = {
   statDue: document.getElementById('stat-due'),
   statMastered: document.getElementById('stat-mastered'),
   statStreak: document.getElementById('stat-streak'),
-  btnDashStartReview: document.getElementById('dashboard-start-review'),
+  dashboardStartReview: document.getElementById('dashboard-start-review'),
   recentVocabList: document.getElementById('recent-vocab-list'),
   btnDashViewLibrary: document.getElementById('dash-view-library'),
   
