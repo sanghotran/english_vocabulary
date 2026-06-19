@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>English Spaced Repetition App</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div class="app-container">
+    <!-- Sidebar Navigation -->
+    <aside class="sidebar">
+      <div class="sidebar-brand">
+        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="brand-icon">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+        </svg>
+        <span>Antigravity Vocab</span>
+      </div>
+      <nav class="sidebar-menu">
+        <button class="nav-btn active" data-tab="dashboard">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12l8.954-8.955c.44-.439 1.152-.439 1.591 0L21.75 12M4.5 9.75v10.125c0 .621.504 1.125 1.125 1.125H9.75v-4.875c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125V21h4.125c.621 0 1.125-.504 1.125-1.125V9.75M8.25 21h8.25" />
+          </svg>
+          Dashboard
+        </button>
+        <button class="nav-btn" data-tab="add-word">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v6m3-3H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          Add Word
+        </button>
+        <button class="nav-btn" data-tab="library">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zM3.75 12h.007v.008H3.75V12zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0zm-.375 5.25h.007v.008H3.75v-.008zm.375 0a.375.375 0 11-.75 0 .375.375 0 01.75 0z" />
+          </svg>
+          Library
+        </button>
+        <button class="nav-btn" data-tab="review">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 21l8.904-4.473L21 21l-1.813-5.096m-11-8.5l.813-5.096L17 6.5l-8.904 4.473L9 6.5m-3.5 6l.813-5.096L13.5 11l-8.904 4.473L3.5 11" />
+          </svg>
+          Review Arena
+          <span id="review-badge" class="badge hide">0</span>
+        </button>
+        <button class="nav-btn" data-tab="settings">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.43l-1.003.828c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.43l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.991l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.645-.869l.214-1.28z" />
+            <path stroke-linecap="round" stroke-linejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          Settings
+        </button>
+      </nav>
+      <div class="sidebar-footer">
+        <span class="version-label">v1.0.0</span>
+      </div>
+    </aside>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+      <!-- Top Header -->
+      <header class="top-header">
+        <h1 id="page-title">Dashboard</h1>
+        <div id="api-status-indicator" class="api-status-badge">
+          <span class="indicator-dot"></span>
+          <span id="api-status-text">Groq AI Offline</span>
+        </div>
+      </header>
+
+      <!-- App Tabs -->
+      <div class="tab-viewport">
+        
+        <!-- DASHBOARD TAB -->
+        <section id="dashboard-tab" class="tab-panel active">
+          <div class="dashboard-grid">
+            
+            <div class="stat-card">
+              <div class="stat-icon-wrapper blue">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" />
+                </svg>
+              </div>
+              <div class="stat-details">
+                <span class="stat-label">Total Vocabulary</span>
+                <span id="stat-total" class="stat-value">0</span>
+              </div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-icon-wrapper orange">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div class="stat-details">
+                <span class="stat-label">Due For Review</span>
+                <span id="stat-due" class="stat-value">0</span>
+              </div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-icon-wrapper green">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+              </div>
+              <div class="stat-details">
+                <span class="stat-label">Mastered Words</span>
+                <span id="stat-mastered" class="stat-value">0</span>
+              </div>
+            </div>
+
+            <div class="stat-card">
+              <div class="stat-icon-wrapper violet">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M15.362 5.214A8.252 8.252 0 0112 21 8.25 8.25 0 016.038 7.048 8.287 8.287 0 009 9.6a8.983 8.983 0 013.361-6.867 8.21 8.21 0 003 2.48z" />
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M12 18a3.75 3.75 0 00.495-7.467 5.99 5.99 0 00-1.925 3.546 5.974 5.974 0 01-2.133-1A3.75 3.75 0 0012 18z" />
+                </svg>
+              </div>
+              <div class="stat-details">
+                <span class="stat-label">Study Streak</span>
+                <span id="stat-streak" class="stat-value">0 days</span>
+              </div>
+            </div>
+
+          </div>
+
+          <div class="dashboard-action-panel">
+            <div class="action-text">
+              <h2>Ready to level up your English?</h2>
+              <p>Your spaced-repetition scheduler keeps track of when words are slipping from your memory. Review them now to ensure long-term retention.</p>
+            </div>
+            <button id="dashboard-start-review" class="btn primary-glowing btn-lg">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="btn-icon">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M15.59 14.37a6 6 0 01-8.25 0m8.25 0a6 6 0 11-8.25 0m8.25 0v1.44m-8.25-1.44v1.44m8.25-1.44h.008M7.5 14.37h.008m1.233-12.723a1.125 1.125 0 011.55 0L12 3.843l1.717-1.717a1.125 1.125 0 011.55 0l3 3a1.125 1.125 0 010 1.55L16.55 8.393l1.717 1.717a1.125 1.125 0 010 1.55l-3 3a1.125 1.125 0 01-1.55 0L12 12.943l-1.717 1.717a1.125 1.125 0 01-1.55 0l-3-3a1.125 1.125 0 010-1.55L7.45 8.393 5.733 6.676a1.125 1.125 0 010-1.55l3-3z" />
+              </svg>
+              Start Review Session (<span class="due-count">0</span> due)
+            </button>
+          </div>
+
+          <div class="recent-list-panel glass-panel">
+            <div class="panel-header">
+              <h3>Recently Added Vocabulary</h3>
+              <button id="dash-view-library" class="btn text">View All &rarr;</button>
+            </div>
+            <div class="table-container">
+              <table class="vocab-table">
+                <thead>
+                  <tr>
+                    <th>Word</th>
+                    <th>IPA</th>
+                    <th>Vietnamese Translation</th>
+                    <th>Related Words</th>
+                    <th>Next Review</th>
+                  </tr>
+                </thead>
+                <tbody id="recent-vocab-list">
+                  <!-- Generated dynamically -->
+                  <tr class="empty-state">
+                    <td colspan="5">No vocabulary added yet. Go to "Add Word" to start!</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- ADD WORD TAB -->
+        <section id="add-word-tab" class="tab-panel">
+          <div class="layout-split">
+            
+            <!-- Input Form -->
+            <div class="form-panel glass-panel">
+              <div class="panel-header">
+                <h3>Vocabulary Details</h3>
+                <span class="hint-label">* indicates manual inputs</span>
+              </div>
+              <form id="add-vocab-form">
+                <input type="hidden" id="vocab-id" value="">
+                
+                <div class="form-row">
+                  <div class="form-group">
+                    <label for="vocab-main-word">Main Word *</label>
+                    <input type="text" id="vocab-main-word" placeholder="e.g. meticulous" required autocomplete="off">
+                  </div>
+                  <div class="form-group">
+                    <label for="vocab-related-words">Related Words (comma-separated) *</label>
+                    <input type="text" id="vocab-related-words" placeholder="e.g. meticulously, meticulousness" autocomplete="off">
+                  </div>
+                </div>
+
+                <div class="form-action-bar-center">
+                  <button type="button" id="btn-ai-generate" class="btn secondary">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="btn-icon rotate-spin">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 21l8.904-4.473L21 21l-1.813-5.096m-11-8.5l.813-5.096L17 6.5l-8.904 4.473L9 6.5m-3.5 6l.813-5.096L13.5 11l-8.904 4.473L3.5 11" />
+                    </svg>
+                    Generate Details with Groq AI
+                  </button>
+                </div>
+
+                <div class="ai-generated-fields-section">
+                  <div class="section-title-divider">
+                    <span>AI Generated Details (Editable)</span>
+                  </div>
+
+                  <div class="form-row">
+                    <div class="form-group">
+                      <label for="vocab-ipa">Pronunciation (IPA)</label>
+                      <input type="text" id="vocab-ipa" placeholder="e.g. /məˈtɪk.jə.ləs/">
+                    </div>
+                    <div class="form-group">
+                      <label for="vocab-translation">Vietnamese Translation</label>
+                      <input type="text" id="vocab-translation" placeholder="e.g. tỉ mỉ, kỹ càng">
+                    </div>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="vocab-sentence-vi">Example Sentence (Vietnamese)</label>
+                    <textarea id="vocab-sentence-vi" rows="2" placeholder="e.g. Cô ấy cực kỳ tỉ mỉ trong công việc chuẩn bị cho buổi thuyết trình."></textarea>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="vocab-sentence-en">English Translation of Example Sentence</label>
+                    <textarea id="vocab-sentence-en" rows="2" placeholder="e.g. She was meticulous in her preparations for the presentation."></textarea>
+                  </div>
+                </div>
+
+                <div class="form-footer">
+                  <button type="button" id="btn-clear-form" class="btn text">Reset Form</button>
+                  <button type="submit" class="btn primary">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="btn-icon">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
+                    </svg>
+                    Save Vocabulary
+                  </button>
+                </div>
+              </form>
+            </div>
+
+            <!-- AI Helper Log Console -->
+            <div class="help-panel glass-panel">
+              <h3>Assistant Logs</h3>
+              <div id="ai-assistant-output" class="console-box">
+                <div class="console-line system">Waiting for vocabulary input...</div>
+              </div>
+              <div class="helper-tips">
+                <h4>Tips:</h4>
+                <ul>
+                  <li>Input the main English word and family words first (e.g. <i>"comprehend"</i> and <i>"comprehension, comprehensible"</i>).</li>
+                  <li>Clicking **Generate Details** will query the Llama model on Groq to craft accurate translations and a contextual Vietnamese sentence containing your words.</li>
+                  <li>Ensure your **Groq API Key** is entered in the Settings tab first.</li>
+                </ul>
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+        <!-- LIBRARY TAB -->
+        <section id="library-tab" class="tab-panel">
+          <div class="library-header glass-panel">
+            <div class="search-bar">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="search-icon">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.602 10.602z" />
+              </svg>
+              <input type="text" id="library-search-input" placeholder="Search by word, translation, or sentence...">
+            </div>
+            <div class="filter-group">
+              <label for="library-sort-select">Sort by:</label>
+              <select id="library-sort-select" class="custom-select">
+                <option value="recent">Recently Added</option>
+                <option value="alphabetical">A-Z Alphabetical</option>
+                <option value="due">Review Urgency</option>
+                <option value="mastery">Level of Mastery</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="library-grid-wrapper">
+            <div class="table-container glass-panel">
+              <table class="vocab-table full-width">
+                <thead>
+                  <tr>
+                    <th>Word & IPA</th>
+                    <th>Translation</th>
+                    <th>Related Words</th>
+                    <th>Example Sentence (EN / VI)</th>
+                    <th>SRS Stats</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody id="library-vocab-list">
+                  <!-- Dynamically populated -->
+                  <tr class="empty-state">
+                    <td colspan="6">No vocabulary found matches the criteria.</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </section>
+
+        <!-- REVIEW TAB -->
+        <section id="review-tab" class="tab-panel">
+          
+          <!-- State 1: Start Screen -->
+          <div id="review-start-state" class="review-box glass-panel text-center">
+            <div class="review-welcome-badge">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4.26 10.19c0-2.11.77-4.21 2.3-5.74C8.1 2.91 10.2 2.15 12.3 2.15c2.11 0 4.21.76 5.74 2.3 1.53 1.53 2.3 3.63 2.3 5.74 0 2.11-.77 4.21-2.3 5.74-1.53 1.53-3.63 2.3-5.74 2.3-2.11 0-4.21-.76-5.74-2.3-1.53-1.53-2.3-3.63-2.3-5.74zM12 6.75v10.5m-5.25-5.25h10.5" />
+              </svg>
+            </div>
+            <h2>Vocab Review Session</h2>
+            <p class="lead-text">You have <span id="review-due-count-badge" class="count-highlight">0</span> words due for spaced repetition review.</p>
+            <div class="review-options">
+              <div class="form-checkbox-group">
+                <input type="checkbox" id="review-auto-audio" checked>
+                <label for="review-auto-audio">Auto-play pronunciation audio on card load</label>
+              </div>
+            </div>
+            <button id="btn-start-review-session" class="btn primary-glowing btn-lg btn-center">
+              Start Reviewing Now
+            </button>
+          </div>
+
+          <!-- State 2: Active Review Session -->
+          <div id="review-active-state" class="review-container hide">
+            
+            <!-- Session progress bar -->
+            <div class="session-progress-wrapper">
+              <div class="progress-info">
+                <span>Card <span id="review-current-index">1</span> of <span id="review-total-count">10</span></span>
+                <span id="review-card-stage-name">Step 1: Write Word</span>
+              </div>
+              <div class="progress-bar-container">
+                <div id="review-session-progress-bar" class="progress-bar" style="width: 10%"></div>
+              </div>
+            </div>
+
+            <!-- Review Card Arena -->
+            <div class="review-card-layout">
+              
+              <div class="review-flashcard glass-panel">
+                
+                <!-- STAGE 1: SPELLING OF MAIN WORD -->
+                <div id="review-stage-1" class="review-stage-panel active">
+                  <div class="card-prompt-header">
+                    <span class="stage-tag">Step 1 of 3: Main Word Recall</span>
+                    <button id="review-audio-btn-s1" class="btn circle-btn" title="Listen Pronunciation">
+                      <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M19.114 5.636a9 9 0 010 12.728M16.463 8.288a5.25 5.25 0 010 7.424M6.75 8.25l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z" />
+                      </svg>
+                    </button>
+                  </div>
+                  
+                  <div class="flashcard-content-prompt">
+                    <div class="prompt-item">
+                      <span class="prompt-meta-label">Pronunciation (IPA)</span>
+                      <h3 id="review-ipa-prompt" class="ipa-text">/məˈtɪk.jə.ləs/</h3>
+                    </div>
+                    <div class="prompt-item mt-4">
+                      <span class="prompt-meta-label">Vietnamese Meaning</span>
+                      <h2 id="review-translation-prompt" class="vietnamese-text">tỉ mỉ, kỹ càng</h2>
+                    </div>
+                  </div>
+
+                  <div class="flashcard-answer-input-area">
+                    <label for="review-s1-input">Type the English word:</label>
+                    <input type="text" id="review-s1-input" class="large-input" placeholder="Enter word..." autocomplete="off">
+                    
+                    <!-- Feedback section for S1 -->
+                    <div id="review-s1-feedback" class="stage-feedback hide">
+                      <!-- Rendered dynamically -->
+                    </div>
+
+                    <div class="stage-actions mt-6">
+                      <button id="btn-s1-submit" class="btn primary">Check Answer</button>
+                      <button id="btn-s1-next" class="btn secondary hide">Next Step &rarr;</button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- STAGE 2: ASSOCIATED RELATED WORDS -->
+                <div id="review-stage-2" class="review-stage-panel hide">
+                  <div class="card-prompt-header">
+                    <span class="stage-tag">Step 2 of 3: Associated Word Recall</span>
+                  </div>
+                  
+                  <div class="flashcard-content-prompt">
+                    <div class="prompt-item">
+                      <span class="prompt-meta-label">Main Word</span>
+                      <h2 id="review-s2-main-word" class="word-highlight">meticulous</h2>
+                    </div>
+                    <div class="prompt-item mt-2">
+                      <span class="prompt-meta-label">Vietnamese Meaning</span>
+                      <p id="review-s2-translation" class="text-muted">tỉ mỉ, kỹ càng</p>
+                    </div>
+                  </div>
+
+                  <div class="flashcard-answer-input-area">
+                    <label for="review-s2-input">Type the related words (separated by commas):</label>
+                    <input type="text" id="review-s2-input" class="large-input" placeholder="e.g. word1, word2..." autocomplete="off">
+                    
+                    <!-- Feedback section for S2 -->
+                    <div id="review-s2-feedback" class="stage-feedback hide">
+                      <!-- Rendered dynamically -->
+                    </div>
+
+                    <div class="stage-actions mt-6">
+                      <button id="btn-s2-submit" class="btn primary">Check Related Words</button>
+                      <button id="btn-s2-next" class="btn secondary hide">Next Step &rarr;</button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- STAGE 3: EXAMPLE SENTENCE TRANSLATION -->
+                <div id="review-stage-3" class="review-stage-panel hide">
+                  <div class="card-prompt-header">
+                    <span class="stage-tag">Step 3 of 3: Example Sentence Translation</span>
+                  </div>
+                  
+                  <div class="flashcard-content-prompt">
+                    <div class="prompt-item">
+                      <span class="prompt-meta-label">Main Word Context</span>
+                      <div class="inline-flex-gap">
+                        <strong id="review-s3-main-word" class="word-small-badge">meticulous</strong>
+                        <span id="review-s3-related-words-badges"></span>
+                      </div>
+                    </div>
+                    <div class="prompt-item mt-4">
+                      <span class="prompt-meta-label">Translate this sentence to English</span>
+                      <h3 id="review-s3-sentence-vi" class="vietnamese-sentence-text">Cô ấy cực kỳ tỉ mỉ trong công việc chuẩn bị cho buổi thuyết trình.</h3>
+                    </div>
+                  </div>
+
+                  <div class="flashcard-answer-input-area">
+                    <label for="review-s3-input">Your English Translation:</label>
+                    <textarea id="review-s3-input" class="large-textarea" rows="3" placeholder="Type sentence here..." autocomplete="off"></textarea>
+                    
+                    <!-- Feedback section for S3 -->
+                    <div id="review-s3-feedback" class="stage-feedback hide">
+                      <!-- Rendered dynamically (Groq AI response) -->
+                      <div class="ai-loading-box">
+                        <svg class="spinner" viewBox="0 0 50 50">
+                          <circle class="path" cx="25" cy="25" r="20" fill="none" stroke-width="5"></circle>
+                        </svg>
+                        <span>Groq AI is evaluating your translation...</span>
+                      </div>
+                    </div>
+
+                    <div class="stage-actions mt-6">
+                      <button id="btn-s3-submit" class="btn primary">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="btn-icon">
+                          <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 21l8.904-4.473L21 21l-1.813-5.096m-11-8.5l.813-5.096L17 6.5l-8.904 4.473L9 6.5m-3.5 6l.813-5.096L13.5 11l-8.904 4.473L3.5 11" />
+                        </svg>
+                        Submit for AI Evaluation
+                      </button>
+                      <button id="btn-s3-finish" class="btn primary-glowing hide">Finish & Next Word</button>
+                    </div>
+                  </div>
+                </div>
+
+              </div>
+
+              <!-- Side panel for Session details / Console logs -->
+              <div class="review-sidebar-logs glass-panel">
+                <h3>Session Activity</h3>
+                <div id="review-logs-box" class="console-box small">
+                  <div class="console-line system">Review session started.</div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+
+          <!-- State 3: Finished Session -->
+          <div id="review-finished-state" class="review-box glass-panel text-center hide">
+            <div class="review-complete-badge">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 01-1.043 3.296 3.745 3.745 0 01-3.296 1.043A3.745 3.745 0 0112 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 01-3.296-1.043 3.745 3.745 0 01-1.043-3.296A3.745 3.745 0 013 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 011.043-3.296 3.746 3.746 0 013.296-1.043A3.746 3.746 0 0112 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 013.296 1.043 3.746 3.746 0 011.043 3.296A3.745 3.745 0 0121 12z" />
+              </svg>
+            </div>
+            <h2>Session Completed!</h2>
+            <p class="lead-text">Fantastic job! You've reviewed all your due words for this session.</p>
+            
+            <div class="summary-stats-grid mt-6">
+              <div class="summary-stat">
+                <span id="summary-total-reviewed" class="stat-num">0</span>
+                <span class="stat-desc">Reviewed</span>
+              </div>
+              <div class="summary-stat">
+                <span id="summary-correct-first" class="stat-num">0</span>
+                <span class="stat-desc">Correct spelling</span>
+              </div>
+              <div class="summary-stat">
+                <span id="summary-ai-evals" class="stat-num">0</span>
+                <span class="stat-desc">AI Gradings</span>
+              </div>
+            </div>
+
+            <button id="btn-review-complete-dashboard" class="btn primary mt-8 btn-center">
+              Return to Dashboard
+            </button>
+          </div>
+
+        </section>
+
+        <!-- SETTINGS TAB -->
+        <section id="settings-tab" class="tab-panel">
+          <div class="settings-layout glass-panel">
+            
+            <div class="settings-section">
+              <h3>Groq AI Integration</h3>
+              <p class="section-desc">Manage your API credentials for vocabulary definitions and sentence evaluations.</p>
+              
+              <div class="form-group">
+                <label for="settings-groq-key">Groq API Key</label>
+                <div class="input-with-button">
+                  <input type="password" id="settings-groq-key" placeholder="Enter gsk_... API Key">
+                  <button id="btn-toggle-key-visibility" class="btn secondary px-3" type="button">Show</button>
+                </div>
+                <span class="input-helper">Your API key is stored safely locally in your SQLite database. It is never sent to any third party other than Groq.</span>
+              </div>
+
+              <div class="form-group">
+                <label for="settings-groq-model">AI Model Selection</label>
+                <select id="settings-groq-model" class="custom-select">
+                  <option value="llama-3.3-70b-versatile">Llama 3.3 70B Versatile (Recommended, High quality)</option>
+                  <option value="llama3-8b-8192">Llama 3 8B (Fastest & Light)</option>
+                  <option value="llama-3.1-8b-instant">Llama 3.1 8B Instant</option>
+                  <option value="mixtral-8x7b-32768">Mixtral 8x7B (Alternative)</option>
+                </select>
+              </div>
+
+              <button id="btn-save-ai-settings" class="btn primary mt-2">Save AI Settings</button>
+            </div>
+
+            <div class="settings-section mt-8">
+              <h3>Audio Pronunciation Settings</h3>
+              <p class="section-desc">Configure the Text-to-Speech voice engine for vocabulary pronunciation.</p>
+              
+              <div class="form-group">
+                <label for="settings-audio-voice">Select Voice / Accent</label>
+                <select id="settings-audio-voice" class="custom-select">
+                  <!-- Generated by JS -->
+                  <option value="">Detecting System Voices...</option>
+                </select>
+              </div>
+
+              <div class="form-row">
+                <div class="form-group">
+                  <label for="settings-audio-rate">Speech Rate: <span id="val-audio-rate">1.0</span>x</label>
+                  <input type="range" id="settings-audio-rate" min="0.5" max="1.5" step="0.1" value="1.0" class="custom-range">
+                </div>
+                <div class="form-group">
+                  <label for="settings-audio-pitch">Speech Pitch: <span id="val-audio-pitch">1.0</span></label>
+                  <input type="range" id="settings-audio-pitch" min="0.5" max="1.5" step="0.1" value="1.0" class="custom-range">
+                </div>
+              </div>
+
+              <div class="inline-flex-gap mt-2">
+                <button id="btn-test-speech" class="btn secondary">
+                  Test Audio Pronunciation
+                </button>
+                <button id="btn-save-audio-settings" class="btn primary">Save Audio Settings</button>
+              </div>
+            </div>
+
+            <div class="settings-section mt-8">
+              <h3>Backup & Data Management</h3>
+              <p class="section-desc">Export your vocabulary database for safekeeping or restore from an existing backup.</p>
+              
+              <div class="inline-flex-gap mt-4">
+                <button id="btn-export-db" class="btn secondary">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="btn-icon">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+                  </svg>
+                  Export Database (Backup JSON)
+                </button>
+                
+                <button id="btn-import-db-trigger" class="btn secondary">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="btn-icon">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5m-13.5-9L12 3m0 0l4.5 4.5M12 3v13.5" />
+                  </svg>
+                  Import Database (Restore JSON)
+                </button>
+                <input type="file" id="settings-db-import-file" class="hide" accept=".json">
+              </div>
+            </div>
+
+          </div>
+        </section>
+
+      </div>
+    </main>
+  </div>
+  
+  <script src="app.js"></script>
+</body>
+</html>

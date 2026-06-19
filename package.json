@@ -1,0 +1,23 @@
+{
+  "name": "english-vocab-app",
+  "version": "1.0.0",
+  "description": "Premium English vocabulary learning application with spaced repetition and Groq AI.",
+  "scripts": {
+    "tauri": "tauri",
+    "dev": "tauri dev",
+    "build": "tauri build"
+  },
+  "keywords": [
+    "english",
+    "vocabulary",
+    "spaced-repetition",
+    "groq-ai",
+    "tauri"
+  ],
+  "author": "Antigravity",
+  "license": "ISC",
+  "dependencies": {},
+  "devDependencies": {
+    "@tauri-apps/cli": "^2.0.0"
+  }
+}

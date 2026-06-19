@@ -1,0 +1,51 @@
+name: Build Rust Native (Tauri)
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      
+      # 1. Setup Node.js Environment
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: package-lock.json
+      
+      - run: npm install
+
+      # 2. Setup Rust Toolchain
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      # 3. Cache Rust compiler targets to speed up builds
+      - name: Rust Cache
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+          prefix-key: "rust-native-v1"
+
+      # 4. Build Tauri Desktop App
+      - name: Build Tauri App
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          projectPath: "."
+          args: "--target x86_64-pc-windows-msvc"
+
+      # 5. Upload packaged Windows installers
+      - name: Upload Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: EnglishVocabApp-Windows
+          path: |
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
+            src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
