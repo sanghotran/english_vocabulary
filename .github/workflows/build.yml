@@ -42,11 +42,12 @@ jobs:
           projectPath: "."
           args: "--target x86_64-pc-windows-msvc"
 
-      # 5. Upload packaged Windows installers
+      # 5. Upload packaged Windows installers and standalone executable
       - name: Upload Artifact
         uses: actions/upload-artifact@v4
         with:
           name: EnglishVocabApp-Windows
           path: |
+            src-tauri/target/x86_64-pc-windows-msvc/release/EnglishVocabApp.exe
             src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
             src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
