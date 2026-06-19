@@ -194,6 +194,11 @@ fn update_review(
 }
 
 #[tauri::command]
+fn get_db_path(state: tauri::State<'_, DbState>) -> String {
+    state.db_path.to_string_lossy().into_owned()
+}
+
+#[tauri::command]
 async fn call_groq(
     api_key: String,
     model: String,
@@ -312,7 +317,8 @@ fn main() {
             delete_vocab,
             update_review,
             call_groq,
-            get_groq_models
+            get_groq_models,
+            get_db_path
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

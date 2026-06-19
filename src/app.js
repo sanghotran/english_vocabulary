@@ -1,3 +1,35 @@
+// Setup global log interception for Debug Console tab
+const originalLog = console.log;
+const originalError = console.error;
+const originalWarn = console.warn;
+
+function writeToDebugConsole(message, type) {
+  const container = document.getElementById('debug-console-logs');
+  if (container) {
+    const line = document.createElement('div');
+    line.classList.add('console-line', type);
+    const time = new Date().toLocaleTimeString();
+    line.textContent = `[${time}] ${message}`;
+    container.appendChild(line);
+    container.scrollTop = container.scrollHeight;
+  }
+}
+
+console.log = function(...args) {
+  originalLog.apply(console, args);
+  writeToDebugConsole(args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' '), 'system');
+};
+
+console.error = function(...args) {
+  originalError.apply(console, args);
+  writeToDebugConsole(args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' '), 'error');
+};
+
+console.warn = function(...args) {
+  originalWarn.apply(console, args);
+  writeToDebugConsole(args.map(a => typeof a === 'object' ? JSON.stringify(a) : a).join(' '), 'ai');
+};
+
 // Check if running in Tauri and establish compatibility bridge
 if (window.__TAURI__) {
   const invoke = window.__TAURI__.core.invoke;
@@ -12,7 +44,8 @@ if (window.__TAURI__) {
       invoke('update_review', { id, interval, easeFactor, repetitions, nextReview }),
     callGroq: ({ apiKey, model, messages, responseFormat }) => 
       invoke('call_groq', { apiKey, model, messages, responseFormat }),
-    getGroqModels: (apiKey) => invoke('get_groq_models', { apiKey })
+    getGroqModels: (apiKey) => invoke('get_groq_models', { apiKey }),
+    getDbPath: () => invoke('get_db_path')
   };
 }
 
@@ -139,7 +172,13 @@ const elements = {
   btnSaveAudioSettings: document.getElementById('btn-save-audio-settings'),
   btnExportDb: document.getElementById('btn-export-db'),
   btnImportDbTrigger: document.getElementById('btn-import-db-trigger'),
-  settingsDbImportFile: document.getElementById('settings-db-import-file')
+  settingsDbImportFile: document.getElementById('settings-db-import-file'),
+  
+  // Debug Console
+  debugDbPath: document.getElementById('debug-db-path'),
+  debugSettingsList: document.getElementById('debug-settings-list'),
+  debugConsoleLogs: document.getElementById('debug-console-logs'),
+  btnClearDebugLogs: document.getElementById('btn-clear-debug-logs')
 };
 
 // Initialize Application
@@ -151,6 +190,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   setupLibraryHandlers();
   setupReviewHandlers();
   setupBackupHandlers();
+  setupDebugHandlers();
   
   // Initial load of statistics
   await updateAppStats();
@@ -419,7 +459,8 @@ async function switchTab(tabName) {
     'add-word': 'Add Word',
     'library': 'Library',
     'review': 'Review Arena',
-    'settings': 'Settings'
+    'settings': 'Settings',
+    'debug': 'Debug Console'
   };
   elements.pageTitle.textContent = tabTitles[tabName] || 'Dashboard';
   
@@ -433,6 +474,8 @@ async function switchTab(tabName) {
     await initializeReviewTab();
   } else if (tabName === 'settings') {
     await loadSettings();
+  } else if (tabName === 'debug') {
+    await initializeDebugTab();
   }
 }
 
@@ -1509,4 +1552,70 @@ function escapeHtml(unsafe) {
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
+}
+
+// --- DEBUG TAB SERVICES ---
+function setupDebugHandlers() {
+  if (elements.btnClearDebugLogs) {
+    elements.btnClearDebugLogs.addEventListener('click', () => {
+      if (elements.debugConsoleLogs) {
+        elements.debugConsoleLogs.innerHTML = '<div class="console-line system">Logs cleared.</div>';
+      }
+    });
+  }
+}
+
+async function initializeDebugTab() {
+  // 1. Get database path from backend
+  if (window.api && window.api.getDbPath) {
+    try {
+      const dbPath = await window.api.getDbPath();
+      elements.debugDbPath.textContent = dbPath || "Database path empty";
+      console.log("Database absolute path loaded:", dbPath);
+    } catch (err) {
+      elements.debugDbPath.textContent = `Error getting path: ${err.message}`;
+      console.error("Failed to get DB path:", err);
+    }
+  } else {
+    elements.debugDbPath.textContent = "window.api.getDbPath is not available (Browser mode?)";
+  }
+
+  // 2. Fetch settings table from SQLite database to list available keys
+  if (window.api && window.api.getSetting) {
+    try {
+      const keysToTest = ['groq-key', 'groq-model', 'audio-voice-uri', 'audio-rate', 'audio-pitch'];
+      elements.debugSettingsList.innerHTML = '';
+      
+      for (const key of keysToTest) {
+        const val = await window.api.getSetting(key);
+        const row = document.createElement('tr');
+        
+        let displayVal = '<span class="text-muted">empty / not set</span>';
+        if (val !== null && val !== undefined) {
+          if (key === 'groq-key') {
+            // Mask API key: e.g. "gsk_...xyz"
+            const trimmed = val.trim();
+            if (trimmed.length > 8) {
+              displayVal = `<code>${trimmed.substring(0, 6)}...${trimmed.substring(trimmed.length - 4)}</code> (length: ${trimmed.length})`;
+            } else {
+              displayVal = `<code>Present (length: ${trimmed.length})</code>`;
+            }
+          } else {
+            displayVal = `<code>${escapeHtml(val)}</code>`;
+          }
+        }
+        
+        row.innerHTML = `
+          <td style="font-family:monospace; font-weight:600; color:#a5b4fc;">${key}</td>
+          <td>${displayVal}</td>
+        `;
+        elements.debugSettingsList.appendChild(row);
+      }
+    } catch (err) {
+      console.error("Failed to retrieve settings metadata:", err);
+      elements.debugSettingsList.innerHTML = `<tr><td colspan="2" class="console-line error">Error: ${escapeHtml(err.message)}</td></tr>`;
+    }
+  } else {
+    elements.debugSettingsList.innerHTML = `<tr><td colspan="2" class="console-line error">SQLite settings access is not available</td></tr>`;
+  }
 }

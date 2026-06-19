@@ -52,6 +52,12 @@
           </svg>
           Settings
         </button>
+        <button class="nav-btn" data-tab="debug">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+          </svg>
+          Debug Console
+        </button>
       </nav>
       <div class="sidebar-footer">
         <span class="version-label">v1.0.0</span>
@@ -592,6 +598,55 @@
               </div>
             </div>
 
+          </div>
+        </section>
+
+        <!-- DEBUG TAB -->
+        <section id="debug-tab" class="tab-panel">
+          <div class="settings-layout glass-panel">
+            <div class="settings-section">
+              <h3>System Information</h3>
+              <p class="section-desc">Technical details regarding application execution and paths.</p>
+              
+              <div class="form-group">
+                <label>SQLite Database Path</label>
+                <div class="console-line" id="debug-db-path" style="background:#0f172a; padding:12px; border-radius:6px; font-family:monospace; word-break:break-all; color:#38bdf8;">
+                  Loading database path...
+                </div>
+              </div>
+            </div>
+
+            <div class="settings-section mt-8">
+              <h3>Settings Table Metadata</h3>
+              <p class="section-desc">Keys currently present in the SQLite database settings table.</p>
+              
+              <div class="table-container">
+                <table class="vocab-table">
+                  <thead>
+                    <tr>
+                      <th>Key Name</th>
+                      <th>Value Preview / Masked</th>
+                    </tr>
+                  </thead>
+                  <tbody id="debug-settings-list">
+                    <tr>
+                      <td colspan="2">Loading settings metadata...</td>
+                    </tr>
+                  </tbody>
+                </table>
+              </div>
+            </div>
+
+            <div class="settings-section mt-8">
+              <h3>Application Console Logs</h3>
+              <p class="section-desc">Live Javascript and Tauri logs captured during this session.</p>
+              
+              <div id="debug-console-logs" class="console-box" style="height:350px;">
+                <div class="console-line system">Debug session initiated. Capturing logs...</div>
+              </div>
+              
+              <button id="btn-clear-debug-logs" class="btn secondary mt-4">Clear Logs</button>
+            </div>
           </div>
         </section>
 
