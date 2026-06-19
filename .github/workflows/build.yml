@@ -2,8 +2,9 @@ name: Build Rust Native (Tauri)
 
 on:
   push:
-    branches: [ main ]
+    branches: [ main, master ]
   workflow_dispatch:
+
 
 jobs:
   build:
