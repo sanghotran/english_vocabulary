@@ -48,6 +48,6 @@ jobs:
         with:
           name: EnglishVocabApp-Windows
           path: |
-            src-tauri/target/x86_64-pc-windows-msvc/release/EnglishVocabApp.exe
+            src-tauri/target/x86_64-pc-windows-msvc/release/*.exe
             src-tauri/target/x86_64-pc-windows-msvc/release/bundle/nsis/*.exe
             src-tauri/target/x86_64-pc-windows-msvc/release/bundle/msi/*.msi
