@@ -183,18 +183,38 @@ const elements = {
 
 // Initialize Application
 document.addEventListener('DOMContentLoaded', async () => {
-  setupNavigation();
-  await loadSettings();
-  setupAudioEngine();
-  setupFormHandlers();
-  setupLibraryHandlers();
-  setupReviewHandlers();
-  setupBackupHandlers();
-  setupDebugHandlers();
-  
-  // Initial load of statistics
-  await updateAppStats();
-  await loadRecentVocab();
+  try {
+    setupNavigation();
+    console.log("Initialization: Navigation setup complete.");
+    
+    await loadSettings();
+    console.log("Initialization: Settings loaded successfully.");
+    
+    setupAudioEngine();
+    console.log("Initialization: Audio engine setup complete.");
+    
+    setupFormHandlers();
+    console.log("Initialization: Form handlers setup complete.");
+    
+    setupLibraryHandlers();
+    console.log("Initialization: Library handlers setup complete.");
+    
+    setupReviewHandlers();
+    console.log("Initialization: Review handlers setup complete.");
+    
+    setupBackupHandlers();
+    console.log("Initialization: Backup and settings handlers setup complete.");
+    
+    setupDebugHandlers();
+    console.log("Initialization: Debug handlers setup complete.");
+    
+    // Initial load of statistics
+    await updateAppStats();
+    await loadRecentVocab();
+    console.log("Initialization: App stats and recent vocab loaded successfully.");
+  } catch (err) {
+    console.error("CRITICAL Initialization Error:", err);
+  }
 });
 
 // --- HELPER LOGGERS ---
