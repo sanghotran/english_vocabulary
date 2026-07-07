@@ -2,7 +2,6 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::path::PathBuf;
-use std::sync::Mutex;
 use tauri::Manager;
 use rusqlite::{Connection, OptionalExtension};
 
@@ -183,7 +182,7 @@ fn due_vocab(state: tauri::State<'_, DbState>) -> Result<Vec<ReviewCard>, String
         
         cards.push(ReviewCard {
             id,
-            vocabulary_id,
+            vocabulary_id: vocab_id,
             word,
             interval,
             ease_factor,
