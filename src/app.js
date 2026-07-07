@@ -457,6 +457,9 @@ function setupNavigation() {
   elements.navButtons.forEach(btn => {
     btn.addEventListener('click', () => {
       const tabName = btn.dataset.tab;
+      if (tabName === 'add-word' && elements.vocabId.value) {
+        resetForm();
+      }
       switchTab(tabName);
     });
   });
@@ -510,15 +513,26 @@ async function updateAppStats() {
   const vocabList = await window.api.listVocab();
   const dueVocab = await window.api.dueVocab();
   
-  totalCount = vocabList.length;
+  let totalRelatedCount = 0;
+  let masteredRelatedCount = 0;
+  vocabList.forEach(v => {
+    if (v.related_details && v.related_details.length > 0) {
+      totalRelatedCount += v.related_details.length;
+      masteredRelatedCount += v.related_details.filter(rd => rd.interval >= 21).length;
+    } else {
+      totalRelatedCount += 1;
+      if (v.interval >= 21) {
+        masteredRelatedCount++;
+      }
+    }
+  });
+
+  totalCount = totalRelatedCount;
   dueCount = dueVocab.length;
-  
-  // Calculation of Mastered words: interval >= 21 days (a common metric for durable memory)
-  const masteredCount = vocabList.filter(v => v.interval >= 21).length;
   
   elements.statTotal.textContent = totalCount;
   elements.statDue.textContent = dueCount;
-  elements.statMastered.textContent = masteredCount;
+  elements.statMastered.textContent = masteredRelatedCount;
   
   // Update badges
   if (dueCount > 0) {
@@ -598,13 +612,36 @@ async function loadRecentVocab() {
   recent.forEach(v => {
     const row = document.createElement('tr');
     
-    // Highlight if due
-    const isDue = new Date(v.next_review) <= new Date();
+    // Highlight if due (check all related details)
+    let groupIsDue = false;
+    let earliestNextReview = null;
+    let minInterval = 0;
+    
+    if (v.related_details && v.related_details.length > 0) {
+      v.related_details.forEach(rd => {
+        if (new Date(rd.next_review) <= new Date()) {
+          groupIsDue = true;
+        }
+        const rdDate = new Date(rd.next_review);
+        if (!earliestNextReview || rdDate < earliestNextReview) {
+          earliestNextReview = rdDate;
+        }
+        if (minInterval === 0 || rd.interval < minInterval) {
+          minInterval = rd.interval;
+        }
+      });
+    } else {
+      earliestNextReview = new Date(v.next_review || 0);
+      minInterval = v.interval || 1;
+      groupIsDue = earliestNextReview <= new Date();
+    }
+    
+    const isDue = groupIsDue;
     if (isDue) {
       row.classList.add('vocab-row-due');
     }
     
-    const formattedDate = new Date(v.next_review).toLocaleDateString();
+    const formattedDate = earliestNextReview ? earliestNextReview.toLocaleDateString() : 'Never';
     
     row.innerHTML = `
       <td class="word-cell">${escapeHtml(v.main_word)}</td>
@@ -616,7 +653,7 @@ async function loadRecentVocab() {
       <td>
         <span class="stats-badge">
           ${isDue ? '<span class="due">Due Now</span>' : formattedDate}
-          <span class="interval">${v.interval}d</span>
+          <span class="interval">${minInterval}d</span>
         </span>
       </td>
     `;
@@ -700,8 +737,12 @@ Do not write markdown wrappers (e.g. do NOT include \`\`\`json or \`\`\`). Outpu
       const contentText = response.choices[0].message.content;
       console.log('AI Response:', contentText);
       
-      // Sanitization in case of backticks
-      const cleanJson = contentText.replace(/```json/g, '').replace(/```/g, '').trim();
+      const firstBrace = contentText.indexOf('{');
+      const lastBrace = contentText.lastIndexOf('}');
+      if (firstBrace === -1 || lastBrace === -1) {
+        throw new Error("Could not find JSON object in AI response");
+      }
+      const cleanJson = contentText.substring(firstBrace, lastBrace + 1);
       const parsedData = JSON.parse(cleanJson);
 
       elements.vocabIpa.value = parsedData.ipa || '';
@@ -754,16 +795,21 @@ Do not write markdown wrappers (e.g. do NOT include \`\`\`json or \`\`\`). Outpu
       related_words
     };
 
-    const result = await window.api.saveVocab(vocab);
-    
-    if (result.success) {
-      alert('Vocabulary saved successfully!');
-      resetForm();
-      await updateAppStats();
-      await loadRecentVocab();
-      switchTab('library');
-    } else {
-      alert(`Failed to save vocabulary: ${result.error || 'Duplicate word error'}`);
+    try {
+      const result = await window.api.saveVocab(vocab);
+      
+      if (result && result.success) {
+        alert('Vocabulary saved successfully!');
+        resetForm();
+        await updateAppStats();
+        await loadRecentVocab();
+        switchTab('library');
+      } else {
+        alert(`Failed to save vocabulary: ${result?.error || 'Duplicate word error'}`);
+      }
+    } catch (err) {
+      console.error(err);
+      alert(`Failed to save vocabulary: ${err.message || err || 'Duplicate word error'}`);
     }
   });
 }
@@ -810,9 +856,26 @@ async function loadLibraryVocab() {
   if (sortBy === 'alphabetical') {
     list.sort((a, b) => a.main_word.localeCompare(b.main_word));
   } else if (sortBy === 'due') {
-    list.sort((a, b) => new Date(a.next_review) - new Date(b.next_review));
+    list.sort((a, b) => {
+      const getEarliestReview = (item) => {
+        if (!item.related_details || item.related_details.length === 0) {
+          return new Date(item.next_review || 0);
+        }
+        return new Date(Math.min(...item.related_details.map(rd => new Date(rd.next_review))));
+      };
+      return getEarliestReview(a) - getEarliestReview(b);
+    });
   } else if (sortBy === 'mastery') {
-    list.sort((a, b) => b.interval - a.interval);
+    list.sort((a, b) => {
+      const getAverageInterval = (item) => {
+        if (!item.related_details || item.related_details.length === 0) {
+          return item.interval || 0;
+        }
+        const sum = item.related_details.reduce((acc, rd) => acc + (rd.interval || 0), 0);
+        return sum / item.related_details.length;
+      };
+      return getAverageInterval(b) - getAverageInterval(a);
+    });
   } else {
     // 'recent' -> sorted by ID/created_at descending by default from IPC
   }
@@ -831,14 +894,55 @@ async function loadLibraryVocab() {
   list.forEach(v => {
     const row = document.createElement('tr');
     
-    // Styling row boundaries
-    const isDue = new Date(v.next_review) <= new Date();
+    // Determine due status and earliest review from related details
+    let groupIsDue = false;
+    let earliestNextReview = null;
+    let relatedWordsHtml = '';
+    
+    if (v.related_details && v.related_details.length > 0) {
+      relatedWordsHtml = v.related_details.map(rd => {
+        const wordIsDue = new Date(rd.next_review) <= new Date();
+        if (wordIsDue) groupIsDue = true;
+        
+        const rdDate = new Date(rd.next_review);
+        if (!earliestNextReview || rdDate < earliestNextReview) {
+          earliestNextReview = rdDate;
+        }
+        
+        const tagClass = wordIsDue ? 'tag due-tag' : 'tag';
+        const titleText = `${rd.word} (Interval: ${rd.interval}d, Reps: ${rd.repetitions}, Next: ${rd.next_review})`;
+        return `<span class="${tagClass}" title="${escapeHtml(titleText)}">${escapeHtml(rd.word)}</span>`;
+      }).join('');
+    } else {
+      relatedWordsHtml = (v.related_words || []).map(rw => `<span class="tag">${escapeHtml(rw)}</span>`).join('');
+    }
+
+    const isDue = groupIsDue;
     if (isDue) {
       row.classList.add('vocab-row-due');
     }
 
-    const formattedDate = new Date(v.next_review).toLocaleDateString();
+    const formattedDate = earliestNextReview ? earliestNextReview.toLocaleDateString() : 'Never';
     
+    let statsHtml = '';
+    if (v.related_details && v.related_details.length > 0) {
+      const dueDetailsCount = v.related_details.filter(rd => new Date(rd.next_review) <= new Date()).length;
+      statsHtml = `
+        <div class="stats-badge">
+          ${isDue ? `<span class="due">${dueDetailsCount} Due</span>` : `<span class="text-muted">${formattedDate}</span>`}
+          <div class="mt-2 text-muted" style="font-size:11px; line-height:1.4;">
+            Total words: <strong>${v.related_details.length}</strong>
+          </div>
+        </div>
+      `;
+    } else {
+      statsHtml = `
+        <div class="stats-badge">
+          ${isDue ? '<span class="due">Due Now</span>' : formattedDate}
+        </div>
+      `;
+    }
+
     row.innerHTML = `
       <td>
         <div class="word-cell">${escapeHtml(v.main_word)}</div>
@@ -846,20 +950,16 @@ async function loadLibraryVocab() {
       </td>
       <td>${escapeHtml(v.translation)}</td>
       <td>
-        ${(v.related_words || []).map(rw => `<span class="tag">${escapeHtml(rw)}</span>`).join('')}
+        <div style="display:flex; flex-wrap:wrap; gap:4px;">
+          ${relatedWordsHtml}
+        </div>
       </td>
       <td>
         <div class="sentence-en">${escapeHtml(v.example_sentence_en || '')}</div>
         <div class="sentence-vi">${escapeHtml(v.example_sentence_vi || '')}</div>
       </td>
       <td>
-        <div class="stats-badge">
-          ${isDue ? '<span class="due">Due Now</span>' : formattedDate}
-          <div class="mt-2 text-muted" style="font-size:11px;">
-            Interval: <strong>${v.interval}d</strong><br>
-            Repetitions: <strong>${v.repetitions}</strong>
-          </div>
-        </div>
+        ${statsHtml}
       </td>
       <td>
         <div class="row-action-buttons">
@@ -931,7 +1031,7 @@ function setupReviewHandlers() {
   // Audio testing inside Review Stage 1
   elements.btnAudioS1.addEventListener('click', () => {
     const activeWord = activeReviewQueue[currentReviewIndex];
-    if (activeWord) speak(activeWord.main_word);
+    if (activeWord) speak(activeWord.word);
   });
 
   // Stage 1 checking
@@ -987,7 +1087,7 @@ function loadActiveCard() {
   const progressPercent = ((currentReviewIndex) / activeReviewQueue.length) * 100;
   elements.reviewProgressBar.style.width = `${progressPercent}%`;
 
-  logToConsole(elements.reviewLogsBox, `Loading card: "${vocab.main_word.charAt(0)}..."`, 'system');
+  logToConsole(elements.reviewLogsBox, `Loading card: "${vocab.word.charAt(0)}..."`, 'system');
 
   // Trigger S1 elements
   transitionToStage(1);
@@ -1026,7 +1126,7 @@ function transitionToStage(stageNum) {
       elements.reviewS1Input.focus();
       // Auto-play audio if checked
       if (elements.reviewAutoAudio.checked) {
-        speak(vocab.main_word);
+        speak(vocab.word);
       }
     }, 100);
     
@@ -1066,8 +1166,11 @@ function transitionToStage(stageNum) {
     elements.reviewS3MainWord.textContent = vocab.main_word;
     
     elements.reviewS3RelatedBadges.innerHTML = '';
-    if (vocab.related_words && vocab.related_words.length > 0) {
-      vocab.related_words.forEach(rw => {
+    
+    // Exclude the active review word from display in the related words tags in Step 3
+    const displayRelated = (vocab.related_words || []).filter(w => w.trim().toLowerCase() !== vocab.word.trim().toLowerCase());
+    if (displayRelated.length > 0) {
+      displayRelated.forEach(rw => {
         const span = document.createElement('span');
         span.className = 'tag';
         span.textContent = rw;
@@ -1087,7 +1190,7 @@ function transitionToStage(stageNum) {
 function checkSpellingStage() {
   const vocab = activeReviewQueue[currentReviewIndex];
   const userTyped = elements.reviewS1Input.value.trim().toLowerCase();
-  const correct = vocab.main_word.trim().toLowerCase();
+  const correct = vocab.word.trim().toLowerCase();
   
   if (!userTyped) return;
   
@@ -1099,31 +1202,31 @@ function checkSpellingStage() {
   feedbackDiv.classList.remove('hide');
   
   // Voice confirmation
-  speak(vocab.main_word);
+  speak(vocab.word);
   
   if (userTyped === correct) {
     sessionStats.spellingCorrect++;
-    logToConsole(elements.reviewLogsBox, `Spelling correct: "${vocab.main_word}"`, 'success');
+    logToConsole(elements.reviewLogsBox, `Spelling correct: "${vocab.word}"`, 'success');
     feedbackDiv.innerHTML = `
       <div class="feedback-status correct">
         <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
         Correct!
       </div>
       <div class="feedback-answer-comparison">
-        <p>You spelled the word perfectly: <strong>${escapeHtml(vocab.main_word)}</strong></p>
+        <p>You spelled the word perfectly: <strong>${escapeHtml(vocab.word)}</strong></p>
       </div>
     `;
     // Attach marker to temporary array
     vocab.spellingFailed = false;
   } else {
-    logToConsole(elements.reviewLogsBox, `Spelling incorrect for "${vocab.main_word}" (Typed: "${userTyped}")`, 'error');
+    logToConsole(elements.reviewLogsBox, `Spelling incorrect for "${vocab.word}" (Typed: "${userTyped}")`, 'error');
     feedbackDiv.innerHTML = `
       <div class="feedback-status incorrect">
         <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
         Incorrect
       </div>
       <div class="feedback-answer-comparison">
-        <p>Correct spelling: <strong class="diff-correct">${escapeHtml(vocab.main_word)}</strong></p>
+        <p>Correct spelling: <strong class="diff-correct">${escapeHtml(vocab.word)}</strong></p>
         <p>Your input: <span class="diff-wrong">${escapeHtml(elements.reviewS1Input.value)}</span></p>
       </div>
     `;
@@ -1145,12 +1248,16 @@ function checkRelatedStage() {
   feedbackDiv.classList.remove('hide');
   
   const userWords = userTyped ? userTyped.split(',').map(s => s.trim().toLowerCase()).filter(s => s.length > 0) : [];
-  const correctWords = (vocab.related_words || []).map(w => w.trim().toLowerCase());
+  
+  // Filter out the active word from the list of related words to recall
+  const correctWords = (vocab.related_words || [])
+    .map(w => w.trim().toLowerCase())
+    .filter(w => w !== vocab.word.trim().toLowerCase());
   
   if (correctWords.length === 0) {
     // If no related words were stored
     feedbackDiv.innerHTML = `
-      <div class="feedback-status correct">No related words were stored for this word.</div>
+      <div class="feedback-status correct">No other related words were stored for this word.</div>
     `;
     vocab.relatedCountCorrect = 0;
     vocab.relatedTotal = 0;
