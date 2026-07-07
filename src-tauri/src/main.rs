@@ -418,7 +418,7 @@ fn main() {
             let _ = conn.execute("ALTER TABLE related_words ADD COLUMN interval INTEGER DEFAULT 1;", []);
             let _ = conn.execute("ALTER TABLE related_words ADD COLUMN ease_factor REAL DEFAULT 2.5;", []);
             let _ = conn.execute("ALTER TABLE related_words ADD COLUMN repetitions INTEGER DEFAULT 0;", []);
-            let _ = conn.execute("ALTER TABLE related_words ADD COLUMN next_review DATETIME DEFAULT (datetime('now', 'localtime'));", []);
+            let _ = conn.execute("ALTER TABLE related_words ADD COLUMN next_review DATETIME DEFAULT '1970-01-01 00:00:00';", []);
 
             conn.execute(
                 "CREATE TABLE IF NOT EXISTS settings (
