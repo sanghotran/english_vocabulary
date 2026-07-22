@@ -48,6 +48,12 @@
           Review Arena
           <span id="review-badge" class="badge hide">0</span>
         </button>
+        <button class="nav-btn" data-tab="practice">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          Luyện tập
+        </button>
         <button class="nav-btn" data-tab="settings">
           <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" d="M9.594 3.94c.09-.542.56-.94 1.11-.94h2.593c.55 0 1.02.398 1.11.94l.213 1.281c.063.374.313.686.645.87.074.04.147.083.22.127.324.196.72.257 1.075.124l1.217-.456a1.125 1.125 0 011.37.49l1.296 2.247a1.125 1.125 0 01-.26 1.43l-1.003.828c-.293.241-.438.613-.43.992a7.723 7.723 0 010 .255c-.008.378.137.75.43.991l1.004.827c.424.35.534.954.26 1.43l-1.298 2.247a1.125 1.125 0 01-1.369.491l-1.217-.456c-.355-.133-.75-.072-1.076.124a6.57 6.57 0 01-.22.128c-.331.183-.581.495-.644.869l-.213 1.28c-.09.543-.56.94-1.11.94h-2.594c-.55 0-1.02-.398-1.11-.94l-.213-1.281c-.062-.374-.312-.686-.644-.87a6.52 6.52 0 01-.22-.127c-.325-.196-.72-.257-1.076-.124l-1.217.456a1.125 1.125 0 01-1.369-.49l-1.297-2.247a1.125 1.125 0 01.26-1.43l1.004-.827c.292-.24.437-.613.43-.992a6.932 6.932 0 010-.255c.007-.378-.138-.75-.43-.991l-1.004-.827a1.125 1.125 0 01-.26-1.43l1.297-2.247a1.125 1.125 0 011.37-.491l1.216.456c.356.133.751.072 1.076-.124.072-.044.146-.087.22-.128.332-.183.582-.495.645-.869l.214-1.28z" />
@@ -232,6 +238,24 @@
               <div id="due-forecast-list" class="forecast-list"></div>
             </div>
           </div>
+
+          <div class="dashboard-bottom-row mt-6" style="grid-template-columns: 1fr 1fr;">
+            <div class="forecast-panel glass-panel">
+              <div class="panel-header">
+                <h3>Từ yếu cần ôn</h3>
+                <span class="hint-label">Tỉ lệ trả lời đúng thấp nhất</span>
+              </div>
+              <div id="weak-words-list" class="forecast-list"></div>
+            </div>
+
+            <div class="forecast-panel glass-panel">
+              <div class="panel-header">
+                <h3>Xu hướng chính xác</h3>
+                <span class="hint-label">7 ngày gần nhất</span>
+              </div>
+              <div id="accuracy-trend-list" class="forecast-list"></div>
+            </div>
+          </div>
         </section>
 
         <!-- ADD WORD TAB -->
@@ -299,6 +323,25 @@
                   <div class="form-group">
                     <label for="vocab-sentence-en">English Translation of Example Sentence</label>
                     <textarea id="vocab-sentence-en" rows="2" placeholder="e.g. She was meticulous in her preparations for the presentation."></textarea>
+                  </div>
+
+                  <div class="form-group">
+                    <label for="vocab-tags">Tags / Chủ đề</label>
+                    <div class="input-with-button">
+                      <input type="text" id="vocab-tags" placeholder="e.g. business, travel" autocomplete="off">
+                      <button type="button" id="btn-suggest-tags" class="icon-btn-mini" title="Gợi ý tag bằng AI">🪄</button>
+                    </div>
+                    <span class="input-helper">Phân cách bằng dấu phẩy. Có thể để trống rồi bấm nút gợi ý.</span>
+                  </div>
+                </div>
+
+                <div id="grammar-notes-section" class="settings-section mt-8 hide">
+                  <div class="panel-header">
+                    <h3>Giải thích ngữ pháp &amp; Collocation</h3>
+                    <button type="button" id="btn-generate-grammar-notes" class="btn secondary btn-sm">Generate</button>
+                  </div>
+                  <div id="grammar-notes-output" class="console-box">
+                    <div class="console-line system">Chưa có giải thích. Bấm Generate để AI phân tích từ loại và collocation phổ biến.</div>
                   </div>
                 </div>
 
@@ -370,6 +413,9 @@
                 <option value="alphabetical">A-Z Alphabetical</option>
                 <option value="due">Review Urgency</option>
                 <option value="mastery">Level of Mastery</option>
+              </select>
+              <select id="library-tag-filter" class="custom-select">
+                <option value="">All tags</option>
               </select>
               <div class="view-toggle-group">
                 <button id="btn-library-view-table" class="view-toggle-btn active" title="Table view">
@@ -619,6 +665,119 @@
 
         </section>
 
+        <!-- PRACTICE TAB -->
+        <section id="practice-tab" class="tab-panel">
+
+          <!-- State 1: Start Screen -->
+          <div id="practice-start-state" class="review-box glass-panel text-center">
+            <div class="review-welcome-badge">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9.75 9.75l4.5 4.5m0-4.5l-4.5 4.5M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+              </svg>
+            </div>
+            <h2>Luyện tập bổ trợ</h2>
+            <p class="lead-text">Ôn luyện nhanh không ảnh hưởng tới lịch ôn tập chính (spaced repetition).</p>
+
+            <div class="practice-mode-toggle mt-6" id="practice-mode-toggle">
+              <button type="button" class="practice-mode-btn active" data-mode="quiz">Quiz trắc nghiệm</button>
+              <button type="button" class="practice-mode-btn" data-mode="fill_blank">Điền từ</button>
+              <button type="button" class="practice-mode-btn" data-mode="dictation">Nghe - chép chính tả</button>
+            </div>
+
+            <div class="form-group mt-4" style="max-width:280px;margin:0 auto;">
+              <label for="practice-pool-select">Nguồn từ vựng</label>
+              <select id="practice-pool-select" class="custom-select">
+                <option value="all">Tất cả từ vựng</option>
+                <option value="due">Từ đến hạn ôn tập</option>
+              </select>
+            </div>
+
+            <p id="practice-start-hint" class="text-muted mt-2 hide"></p>
+
+            <button id="btn-start-practice-session" class="btn primary-glowing btn-lg btn-center mt-6">
+              Bắt đầu luyện tập
+            </button>
+          </div>
+
+          <!-- State 2: Active Practice Session -->
+          <div id="practice-active-state" class="review-container hide">
+
+            <div class="session-progress-wrapper">
+              <div class="progress-info">
+                <span>Câu <span id="practice-current-index">1</span> / <span id="practice-total-count">10</span></span>
+                <span id="practice-mode-label">Quiz trắc nghiệm</span>
+              </div>
+              <div id="practice-segment-track" class="segment-track"></div>
+            </div>
+
+            <div class="practice-card-layout">
+              <div class="review-flashcard glass-panel">
+                <div class="card-prompt-header">
+                  <span class="stage-tag" id="practice-question-tag">Chọn nghĩa đúng</span>
+                  <button id="practice-audio-btn" class="btn circle-btn hide" title="Nghe lại">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M19.114 5.636a9 9 0 010 12.728M16.463 8.288a5.25 5.25 0 010 7.424M6.75 8.25l4.72-4.72a.75.75 0 011.28.53v15.88a.75.75 0 01-1.28.53l-4.72-4.72H4.51c-.88 0-1.704-.507-1.938-1.354A9.01 9.01 0 012.25 12c0-.83.112-1.633.322-2.396C2.806 8.756 3.63 8.25 4.51 8.25H6.75z" />
+                    </svg>
+                  </button>
+                </div>
+
+                <div class="flashcard-content-prompt">
+                  <h2 id="practice-question-prompt" class="vietnamese-text"></h2>
+                </div>
+
+                <!-- Quiz mode: multiple choice options -->
+                <div id="practice-quiz-options" class="practice-options-grid hide"></div>
+
+                <!-- Fill-blank / Dictation mode: text input -->
+                <div id="practice-input-area" class="flashcard-answer-input-area hide">
+                  <label for="practice-text-input" id="practice-input-label">Nhập câu trả lời:</label>
+                  <input type="text" id="practice-text-input" class="large-input" autocomplete="off" placeholder="Nhập câu trả lời...">
+                  <div class="stage-actions mt-6">
+                    <button id="btn-practice-submit" class="btn primary">Kiểm tra</button>
+                  </div>
+                </div>
+
+                <div id="practice-feedback" class="stage-feedback hide"></div>
+
+                <div class="stage-actions mt-6">
+                  <button id="btn-practice-next" class="btn secondary hide">Câu tiếp theo &rarr;</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- State 3: Finished Session -->
+          <div id="practice-finished-state" class="review-box glass-panel text-center hide">
+            <div class="review-complete-badge">
+              <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12c0 1.268-.63 2.39-1.593 3.068a3.745 3.745 0 01-1.043 3.296 3.745 3.745 0 01-3.296 1.043A3.745 3.745 0 0112 21c-1.268 0-2.39-.63-3.068-1.593a3.746 3.746 0 01-3.296-1.043 3.745 3.745 0 01-1.043-3.296A3.745 3.745 0 013 12c0-1.268.63-2.39 1.593-3.068a3.745 3.745 0 011.043-3.296 3.746 3.746 0 013.296-1.043A3.746 3.746 0 0112 3c1.268 0 2.39.63 3.068 1.593a3.746 3.746 0 013.296 1.043 3.746 3.746 0 011.043 3.296A3.745 3.745 0 0121 12z" />
+              </svg>
+            </div>
+            <h2>Hoàn thành phiên luyện tập!</h2>
+            <p class="lead-text">Làm tốt lắm! Hãy tiếp tục duy trì thói quen luyện tập mỗi ngày.</p>
+
+            <div class="summary-stats-grid mt-6">
+              <div class="summary-stat">
+                <span id="practice-summary-total" class="stat-num">0</span>
+                <span class="stat-desc">Câu hỏi</span>
+              </div>
+              <div class="summary-stat">
+                <span id="practice-summary-correct" class="stat-num">0</span>
+                <span class="stat-desc">Trả lời đúng</span>
+              </div>
+              <div class="summary-stat">
+                <span id="practice-summary-accuracy" class="stat-num">0%</span>
+                <span class="stat-desc">Độ chính xác</span>
+              </div>
+            </div>
+
+            <button id="btn-practice-complete-dashboard" class="btn primary mt-8 btn-center">
+              Quay lại Dashboard
+            </button>
+          </div>
+
+        </section>
+
         <!-- SETTINGS TAB -->
         <section id="settings-tab" class="tab-panel">
           <div class="settings-layout glass-panel">
@@ -759,7 +918,45 @@
       </div>
     </main>
   </div>
-  
+
+  <!-- Mini Review Widget (floating, draggable, overlays every tab) -->
+  <button id="mini-review-launcher" class="mini-review-launcher" title="Mini Review">
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" d="M9.813 15.904L9 21l8.904-4.473L21 21l-1.813-5.096m-11-8.5l.813-5.096L17 6.5l-8.904 4.473L9 6.5m-3.5 6l.813-5.096L13.5 11l-8.904 4.473L3.5 11" />
+    </svg>
+    <span id="mini-review-launcher-badge" class="badge hide">0</span>
+  </button>
+
+  <div id="mini-review-panel" class="mini-review-panel glass-panel hide">
+    <div id="mini-review-header" class="mini-review-header">
+      <span>Mini Review</span>
+      <button id="btn-mini-review-close" class="icon-btn-mini" title="Đóng">&times;</button>
+    </div>
+    <div id="mini-review-body" class="mini-review-body">
+      <div id="mini-review-empty" class="mini-review-empty hide">
+        <p>Không có từ nào đến hạn ôn tập. Quay lại sau nhé!</p>
+      </div>
+      <div id="mini-review-card" class="mini-review-card">
+        <div class="mini-review-ipa" id="mini-review-ipa">/ipa/</div>
+        <div class="mini-review-word" id="mini-review-word">word</div>
+        <button id="btn-mini-review-audio" class="btn secondary btn-sm mt-2">🔊 Nghe</button>
+
+        <div id="mini-review-answer" class="mini-review-answer hide">
+          <div class="mini-review-translation" id="mini-review-translation"></div>
+          <div class="mini-review-sentence" id="mini-review-sentence"></div>
+        </div>
+
+        <div class="mt-4">
+          <button id="btn-mini-review-reveal" class="btn primary btn-sm">Hiện nghĩa</button>
+          <div id="mini-review-grade-buttons" class="mini-review-grade-buttons hide">
+            <button id="btn-mini-review-wrong" class="btn secondary btn-sm">✗ Sai</button>
+            <button id="btn-mini-review-correct" class="btn primary-glowing btn-sm">✓ Đúng</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- Toast Notification Container -->
   <div id="toast-container"></div>
   <script src="app.js"></script>

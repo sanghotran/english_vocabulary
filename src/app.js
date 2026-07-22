@@ -51,7 +51,11 @@ if (window.__TAURI__) {
     callGroq: ({ apiKey, model, messages, responseFormat }) => 
       invoke('call_groq', { apiKey, model, messages, responseFormat }),
     getGroqModels: (apiKey) => invoke('get_groq_models', { apiKey }),
-    getDbPath: () => invoke('get_db_path')
+    getDbPath: () => invoke('get_db_path'),
+    logReviewEvent: (vocabularyId, source, isCorrect) =>
+      invoke('log_review_event', { vocabularyId, source, isCorrect }),
+    getReviewLog: (days) => invoke('get_review_log', { days }),
+    saveGrammarNotes: (id, notes) => invoke('save_grammar_notes', { id, notes })
   };
 }
 
@@ -68,6 +72,7 @@ let sessionStats = {
   aiGradings: 0
 };
 let isEvaluatingAI = false;
+let currentEditingVocab = null;
 
 // Audio Configuration
 let audioSettings = {
@@ -106,6 +111,11 @@ const elements = {
   vocabSentenceVi: document.getElementById('vocab-sentence-vi'),
   vocabSentenceEn: document.getElementById('vocab-sentence-en'),
   vocabLevel: document.getElementById('vocab-level'),
+  vocabTags: document.getElementById('vocab-tags'),
+  btnSuggestTags: document.getElementById('btn-suggest-tags'),
+  grammarNotesSection: document.getElementById('grammar-notes-section'),
+  grammarNotesOutput: document.getElementById('grammar-notes-output'),
+  btnGenerateGrammarNotes: document.getElementById('btn-generate-grammar-notes'),
   btnAiGenerate: document.getElementById('btn-ai-generate'),
   btnClearForm: document.getElementById('btn-clear-form'),
   aiAssistantOutput: document.getElementById('ai-assistant-output'),
@@ -121,6 +131,7 @@ const elements = {
   libraryVocabList: document.getElementById('library-vocab-list'),
   libraryTableView: document.getElementById('library-table-view'),
   libraryCardGrid: document.getElementById('library-card-grid'),
+  libraryTagFilter: document.getElementById('library-tag-filter'),
   btnLibraryViewTable: document.getElementById('btn-library-view-table'),
   btnLibraryViewGrid: document.getElementById('btn-library-view-grid'),
   
@@ -175,6 +186,33 @@ const elements = {
   summaryAiEvals: document.getElementById('summary-ai-evals'),
   btnReviewCompleteDashboard: document.getElementById('btn-review-complete-dashboard'),
   
+  // Practice Panel
+  practiceModeToggle: document.getElementById('practice-mode-toggle'),
+  practicePoolSelect: document.getElementById('practice-pool-select'),
+  practiceStartHint: document.getElementById('practice-start-hint'),
+  practiceStartState: document.getElementById('practice-start-state'),
+  practiceActiveState: document.getElementById('practice-active-state'),
+  practiceFinishedState: document.getElementById('practice-finished-state'),
+  btnStartPracticeSession: document.getElementById('btn-start-practice-session'),
+  practiceCurrentIndex: document.getElementById('practice-current-index'),
+  practiceTotalCount: document.getElementById('practice-total-count'),
+  practiceModeLabel: document.getElementById('practice-mode-label'),
+  practiceSegmentTrack: document.getElementById('practice-segment-track'),
+  practiceQuestionTag: document.getElementById('practice-question-tag'),
+  practiceAudioBtn: document.getElementById('practice-audio-btn'),
+  practiceQuestionPrompt: document.getElementById('practice-question-prompt'),
+  practiceQuizOptions: document.getElementById('practice-quiz-options'),
+  practiceInputArea: document.getElementById('practice-input-area'),
+  practiceInputLabel: document.getElementById('practice-input-label'),
+  practiceTextInput: document.getElementById('practice-text-input'),
+  btnPracticeSubmit: document.getElementById('btn-practice-submit'),
+  practiceFeedback: document.getElementById('practice-feedback'),
+  btnPracticeNext: document.getElementById('btn-practice-next'),
+  practiceSummaryTotal: document.getElementById('practice-summary-total'),
+  practiceSummaryCorrect: document.getElementById('practice-summary-correct'),
+  practiceSummaryAccuracy: document.getElementById('practice-summary-accuracy'),
+  btnPracticeCompleteDashboard: document.getElementById('btn-practice-complete-dashboard'),
+
   // Settings
   settingsGroqKey: document.getElementById('settings-groq-key'),
   settingsGroqModel: document.getElementById('settings-groq-model'),
@@ -195,7 +233,26 @@ const elements = {
   debugDbPath: document.getElementById('debug-db-path'),
   debugSettingsList: document.getElementById('debug-settings-list'),
   debugConsoleLogs: document.getElementById('debug-console-logs'),
-  btnClearDebugLogs: document.getElementById('btn-clear-debug-logs')
+  btnClearDebugLogs: document.getElementById('btn-clear-debug-logs'),
+
+  // Mini Review Widget
+  miniReviewLauncher: document.getElementById('mini-review-launcher'),
+  miniReviewLauncherBadge: document.getElementById('mini-review-launcher-badge'),
+  miniReviewPanel: document.getElementById('mini-review-panel'),
+  miniReviewHeader: document.getElementById('mini-review-header'),
+  btnMiniReviewClose: document.getElementById('btn-mini-review-close'),
+  miniReviewEmpty: document.getElementById('mini-review-empty'),
+  miniReviewCard: document.getElementById('mini-review-card'),
+  miniReviewIpa: document.getElementById('mini-review-ipa'),
+  miniReviewWord: document.getElementById('mini-review-word'),
+  btnMiniReviewAudio: document.getElementById('btn-mini-review-audio'),
+  miniReviewAnswer: document.getElementById('mini-review-answer'),
+  miniReviewTranslation: document.getElementById('mini-review-translation'),
+  miniReviewSentence: document.getElementById('mini-review-sentence'),
+  btnMiniReviewReveal: document.getElementById('btn-mini-review-reveal'),
+  miniReviewGradeButtons: document.getElementById('mini-review-grade-buttons'),
+  btnMiniReviewWrong: document.getElementById('btn-mini-review-wrong'),
+  btnMiniReviewCorrect: document.getElementById('btn-mini-review-correct')
 };
 
 // Initialize Application
@@ -221,7 +278,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     
     setupReviewHandlers();
     console.log("Initialization: Review handlers setup complete.");
-    
+
+    setupPracticeHandlers();
+    console.log("Initialization: Practice handlers setup complete.");
+
+    setupMiniReviewWidget();
+    console.log("Initialization: Mini review widget setup complete.");
+
     setupBackupHandlers();
     console.log("Initialization: Backup and settings handlers setup complete.");
     
@@ -626,6 +689,7 @@ async function switchTab(tabName) {
     'add-word': 'Add Word',
     'library': 'Library',
     'review': 'Review Arena',
+    'practice': 'Luyện tập',
     'settings': 'Settings',
     'debug': 'Debug Console'
   };
@@ -639,6 +703,8 @@ async function switchTab(tabName) {
     await loadLibraryVocab();
   } else if (tabName === 'review') {
     await initializeReviewTab();
+  } else if (tabName === 'practice') {
+    initializePracticeTab();
   } else if (tabName === 'settings') {
     await loadSettings();
   } else if (tabName === 'debug') {
@@ -651,7 +717,8 @@ async function updateAppStats() {
   if (!window.api) return;
   const vocabList = await window.api.listVocab();
   const dueVocab = await window.api.dueVocab();
-  
+  const reviewLog = await window.api.getReviewLog(90);
+
   let totalRelatedCount = 0;
   let masteredRelatedCount = 0;
   vocabList.forEach(v => {
@@ -668,11 +735,11 @@ async function updateAppStats() {
 
   totalCount = totalRelatedCount;
   dueCount = dueVocab.length;
-  
+
   elements.statTotal.textContent = totalCount;
   elements.statDue.textContent = dueCount;
   elements.statMastered.textContent = masteredRelatedCount;
-  
+
   // Update badges
   if (dueCount > 0) {
     elements.reviewBadge.classList.remove('hide');
@@ -682,36 +749,41 @@ async function updateAppStats() {
     elements.reviewBadge.classList.add('hide');
     document.querySelectorAll('.due-count').forEach(el => el.textContent = '0');
   }
+  updateMiniReviewBadge(dueCount);
 
-  // Calculate Streak based on study activity / settings
-  const streak = await calculateStreak(vocabList);
+  const streak = calculateStreak(reviewLog);
   elements.statStreak.textContent = `${streak} day${streak !== 1 ? 's' : ''}`;
 
-  renderActivityHeatmap();
+  renderActivityHeatmap(reviewLog);
   renderDueForecast(vocabList);
+  renderWeakWords(reviewLog, vocabList);
+  renderAccuracyTrend(reviewLog);
+}
+
+// --- STATS HELPERS, backed by the review_log SQLite table ---
+function localDateKey(d) {
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+function groupReviewLogByDay(reviewLog) {
+  const byDay = {};
+  reviewLog.forEach(row => {
+    const dayKey = (row.created_at || '').slice(0, 10);
+    if (!dayKey) return;
+    if (!byDay[dayKey]) byDay[dayKey] = { total: 0, correct: 0 };
+    byDay[dayKey].total++;
+    if (row.is_correct) byDay[dayKey].correct++;
+  });
+  return byDay;
 }
 
 // --- ACTIVITY HEATMAP (last 5 weeks, GitHub-style) ---
-function getReviewHistory() {
-  try {
-    return JSON.parse(localStorage.getItem('daily-review-history') || '{}');
-  } catch (err) {
-    return {};
-  }
-}
-
-function recordReviewActivity(count) {
-  const history = getReviewHistory();
-  const todayKey = new Date().toISOString().slice(0, 10);
-  history[todayKey] = (history[todayKey] || 0) + count;
-  localStorage.setItem('daily-review-history', JSON.stringify(history));
-}
-
-function renderActivityHeatmap() {
+function renderActivityHeatmap(reviewLog) {
   const container = document.getElementById('activity-heatmap');
   if (!container) return;
 
-  const history = getReviewHistory();
+  const byDay = groupReviewLogByDay(reviewLog);
   const today = new Date();
   // Pad back to the most recent Sunday so weeks align into clean columns.
   const daysBack = 34 + today.getDay();
@@ -722,8 +794,8 @@ function renderActivityHeatmap() {
   for (let i = 0; i <= daysBack; i++) {
     const d = new Date(start);
     d.setDate(d.getDate() + i);
-    const key = d.toISOString().slice(0, 10);
-    const count = history[key] || 0;
+    const key = localDateKey(d);
+    const count = byDay[key] ? byDay[key].total : 0;
 
     let level = 0;
     if (count >= 10) level = 4;
@@ -735,6 +807,76 @@ function renderActivityHeatmap() {
     cell.className = `heatmap-cell level-${level}`;
     cell.title = `${d.toLocaleDateString()}: ${count} review${count !== 1 ? 's' : ''}`;
     container.appendChild(cell);
+  }
+}
+
+// --- WEAK WORDS (lowest accuracy in review_log) ---
+function renderWeakWords(reviewLog, vocabList) {
+  const container = document.getElementById('weak-words-list');
+  if (!container) return;
+
+  const byVocab = {};
+  reviewLog.forEach(row => {
+    if (!byVocab[row.vocabulary_id]) byVocab[row.vocabulary_id] = { total: 0, correct: 0 };
+    byVocab[row.vocabulary_id].total++;
+    if (row.is_correct) byVocab[row.vocabulary_id].correct++;
+  });
+
+  const vocabById = {};
+  vocabList.forEach(v => { vocabById[v.id] = v; });
+
+  const weak = Object.entries(byVocab)
+    .filter(([, stat]) => stat.total >= 2)
+    .map(([vocabId, stat]) => ({ vocab: vocabById[vocabId], accuracy: stat.correct / stat.total }))
+    .filter(item => item.vocab)
+    .sort((a, b) => a.accuracy - b.accuracy)
+    .slice(0, 5);
+
+  container.innerHTML = '';
+  if (weak.length === 0) {
+    container.innerHTML = `<p class="text-muted" style="font-size:13px;">Chưa đủ dữ liệu. Hãy ôn tập/luyện tập nhiều hơn để xem từ cần cải thiện.</p>`;
+    return;
+  }
+
+  weak.forEach(item => {
+    const percent = Math.round(item.accuracy * 100);
+    const row = document.createElement('div');
+    row.className = 'forecast-row';
+    row.innerHTML = `
+      <span class="forecast-day-label">${escapeHtml(getMainWordFirstPart(item.vocab))}</span>
+      <div class="forecast-bar-track"><div class="forecast-bar-fill weak-word-fill" style="width:${percent}%"></div></div>
+      <span class="forecast-count">${percent}%</span>
+    `;
+    container.appendChild(row);
+  });
+}
+
+// --- ACCURACY TREND (last 7 days) ---
+function renderAccuracyTrend(reviewLog) {
+  const container = document.getElementById('accuracy-trend-list');
+  if (!container) return;
+
+  const byDay = groupReviewLogByDay(reviewLog);
+  const today = new Date();
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+  container.innerHTML = '';
+  for (let i = 6; i >= 0; i--) {
+    const d = new Date(today);
+    d.setDate(d.getDate() - i);
+    const key = localDateKey(d);
+    const stat = byDay[key];
+    const percent = stat && stat.total > 0 ? Math.round((stat.correct / stat.total) * 100) : null;
+    const label = i === 0 ? 'Today' : dayNames[d.getDay()];
+
+    const row = document.createElement('div');
+    row.className = `forecast-row${i === 0 ? ' today' : ''}`;
+    row.innerHTML = `
+      <span class="forecast-day-label">${label}</span>
+      <div class="forecast-bar-track"><div class="forecast-bar-fill" style="width:${percent ?? 0}%"></div></div>
+      <span class="forecast-count">${percent === null ? '-' : percent + '%'}</span>
+    `;
+    container.appendChild(row);
   }
 }
 
@@ -794,49 +936,22 @@ function renderDueForecast(vocabList) {
   });
 }
 
-async function calculateStreak() {
-  // Look at created_at/next_review history to determine consecutive study days (simplified to 0 or 1 for demo, or mock)
-  // Let's implement a simple streak algorithm by checking local storage for daily active timestamps
-  const streakKey = 'study-streak-count';
-  const lastActiveKey = 'study-streak-last-active';
-  
-  const streak = localStorage.getItem(streakKey) || '0';
-  const lastActive = localStorage.getItem(lastActiveKey);
-  
-  if (!lastActive) return 0;
-  
-  const today = new Date().toDateString();
-  const yesterday = new Date(Date.now() - 86400000).toDateString();
-  
-  if (lastActive === today) {
-    return parseInt(streak);
-  } else if (lastActive === yesterday) {
-    return parseInt(streak);
-  } else {
-    // Streak broken
-    localStorage.setItem(streakKey, '0');
-    return 0;
-  }
-}
+// Consecutive days (ending today or, if today has no activity yet, yesterday) with at least 1 logged review.
+function calculateStreak(reviewLog) {
+  const byDay = groupReviewLogByDay(reviewLog);
+  const cursor = new Date();
 
-function updateActiveStreak() {
-  const streakKey = 'study-streak-count';
-  const lastActiveKey = 'study-streak-last-active';
-  const today = new Date().toDateString();
-  const yesterday = new Date(Date.now() - 86400000).toDateString();
-  
-  const lastActive = localStorage.getItem(lastActiveKey);
-  let streak = parseInt(localStorage.getItem(streakKey) || '0');
-  
-  if (lastActive !== today) {
-    if (lastActive === yesterday) {
-      streak += 1;
-    } else {
-      streak = 1; // start new streak
-    }
-    localStorage.setItem(streakKey, streak.toString());
-    localStorage.setItem(lastActiveKey, today);
+  if (!byDay[localDateKey(cursor)]) {
+    cursor.setDate(cursor.getDate() - 1);
+    if (!byDay[localDateKey(cursor)]) return 0;
   }
+
+  let streak = 0;
+  while (byDay[localDateKey(cursor)]) {
+    streak++;
+    cursor.setDate(cursor.getDate() - 1);
+  }
+  return streak;
 }
 
 async function loadRecentVocab() {
@@ -1051,6 +1166,121 @@ Do not write markdown wrappers (e.g. do NOT include \`\`\`json or \`\`\`). Outpu
     }
   });
 
+  // AI Tag Suggestion
+  elements.btnSuggestTags.addEventListener('click', async () => {
+    const mainWord = elements.vocabMainWord.value.trim();
+    const translation = elements.vocabTranslation.value.trim();
+
+    if (!mainWord || !translation) {
+      showToast('Cần có Word 1 và Vietnamese Translation trước khi gợi ý tag.', 'warning');
+      return;
+    }
+
+    const apiKey = elements.settingsGroqKey.value.trim();
+    const model = elements.settingsGroqModel.value;
+    if (!apiKey) {
+      showToast('Groq API Key is missing. Go to Settings tab and enter your key first.', 'warning', 5000);
+      switchTab('settings');
+      return;
+    }
+
+    elements.btnSuggestTags.disabled = true;
+    try {
+      const systemPrompt = `You are a vocabulary categorizer. You classify English words into short Vietnamese topic tags.`;
+      const userPrompt = `
+Từ: "${mainWord}" - Nghĩa: "${translation}".
+Hãy gợi ý 2 đến 4 tag chủ đề ngắn gọn bằng tiếng Việt (ví dụ: công việc, du lịch, học thuật, đời sống, công nghệ...).
+
+Trả lời DUY NHẤT bằng JSON hợp lệ, không markdown, theo định dạng:
+{ "tags": ["tag1", "tag2"] }
+`;
+      const response = await window.api.callGroq({
+        apiKey,
+        model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ],
+        responseFormat: { type: 'json_object' }
+      });
+
+      if (response.error) throw new Error(response.error);
+
+      const contentText = response.choices[0].message.content;
+      const firstBrace = contentText.indexOf('{');
+      const lastBrace = contentText.lastIndexOf('}');
+      if (firstBrace === -1 || lastBrace === -1) {
+        throw new Error("Could not find JSON object in AI response");
+      }
+      const parsed = JSON.parse(contentText.substring(firstBrace, lastBrace + 1));
+      const tags = Array.isArray(parsed.tags) ? parsed.tags : [];
+      elements.vocabTags.value = tags.join(', ');
+      showToast('Đã gợi ý tag!', 'success');
+    } catch (err) {
+      console.error(err);
+      showToast(`Gợi ý tag thất bại: ${err.message}`, 'error', 5000);
+    } finally {
+      elements.btnSuggestTags.disabled = false;
+    }
+  });
+
+  // AI Grammar & Collocation Explanation
+  elements.btnGenerateGrammarNotes.addEventListener('click', async () => {
+    if (!currentEditingVocab || !currentEditingVocab.id) {
+      showToast('Chỉ có thể tạo giải thích ngữ pháp cho từ đã lưu.', 'warning');
+      return;
+    }
+
+    const apiKey = elements.settingsGroqKey.value.trim();
+    const model = elements.settingsGroqModel.value;
+    if (!apiKey) {
+      showToast('Groq API Key is missing. Go to Settings tab and enter your key first.', 'warning', 5000);
+      switchTab('settings');
+      return;
+    }
+
+    const mainWord = elements.vocabMainWord.value.trim();
+    const translation = elements.vocabTranslation.value.trim();
+
+    elements.btnGenerateGrammarNotes.disabled = true;
+    elements.grammarNotesOutput.innerHTML = `<div class="console-line system">Đang tạo giải thích...</div>`;
+
+    try {
+      const systemPrompt = `You are an English grammar and collocation expert explaining to a Vietnamese learner.`;
+      const userPrompt = `
+Từ: "${mainWord}" - Nghĩa: "${translation}".
+Hãy giải thích ngắn gọn bằng tiếng Việt:
+1. Từ loại (danh từ/động từ/tính từ...).
+2. 3-5 collocation (cụm từ đi kèm) phổ biến nhất, kèm nghĩa.
+3. Một lưu ý khi dùng dễ nhầm lẫn (nếu có).
+
+Trả lời bằng văn bản thuần tuý (không markdown), súc tích, dễ đọc.
+`;
+      const response = await window.api.callGroq({
+        apiKey,
+        model,
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: userPrompt }
+        ]
+      });
+
+      if (response.error) throw new Error(response.error);
+      const notes = response.choices[0].message.content.trim();
+
+      elements.grammarNotesOutput.innerHTML = `<div class="console-line ai">${escapeHtml(notes)}</div>`;
+      await window.api.saveGrammarNotes(currentEditingVocab.id, notes);
+      currentEditingVocab.grammar_notes = notes;
+      showToast('Đã tạo và lưu giải thích ngữ pháp!', 'success');
+    } catch (err) {
+      console.error(err);
+      elements.grammarNotesOutput.innerHTML = `<div class="console-line error">Lỗi: ${escapeHtml(err.message)}</div>`;
+      showToast(`Tạo giải thích thất bại: ${err.message}`, 'error', 5000);
+    } finally {
+      elements.btnGenerateGrammarNotes.disabled = false;
+    }
+  });
+
   // Form Submission (Save)
   elements.addVocabForm.addEventListener('submit', async (e) => {
     e.preventDefault();
@@ -1062,6 +1292,7 @@ Do not write markdown wrappers (e.g. do NOT include \`\`\`json or \`\`\`). Outpu
     const translation = elements.vocabTranslation.value.trim();
     const example_sentence_vi = elements.vocabSentenceVi.value.trim();
     const example_sentence_en = elements.vocabSentenceEn.value.trim();
+    const tags = elements.vocabTags.value.trim();
 
     if (!main_word_input || !translation) {
       showToast('Word 1 and Vietnamese Translation are required.', 'warning');
@@ -1084,6 +1315,7 @@ Do not write markdown wrappers (e.g. do NOT include \`\`\`json or \`\`\`). Outpu
       translation,
       example_sentence_vi,
       example_sentence_en,
+      tags,
       related_words: [main_word] // Store as 1 card
     };
 
@@ -1114,6 +1346,9 @@ function resetForm() {
   elements.vocabTranslation.value = '';
   elements.vocabSentenceVi.value = '';
   elements.vocabSentenceEn.value = '';
+  elements.vocabTags.value = '';
+  currentEditingVocab = null;
+  elements.grammarNotesSection.classList.add('hide');
   elements.addVocabForm.querySelector('button[type="submit"]').innerHTML = `
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="btn-icon">
       <path stroke-linecap="round" stroke-linejoin="round" d="M4.5 12.75l6 6 9-13.5" />
@@ -1130,6 +1365,7 @@ let libraryLastList = [];
 function setupLibraryHandlers() {
   elements.librarySearch.addEventListener('input', loadLibraryVocab);
   elements.librarySort.addEventListener('change', loadLibraryVocab);
+  elements.libraryTagFilter.addEventListener('change', loadLibraryVocab);
 
   elements.btnLibraryViewTable.addEventListener('click', () => setLibraryViewMode('table'));
   elements.btnLibraryViewGrid.addEventListener('click', () => setLibraryViewMode('grid'));
@@ -1160,21 +1396,45 @@ function renderActiveLibraryView() {
   }
 }
 
+function parseTags(tagsStr) {
+  return (tagsStr || '').split(',').map(t => t.trim()).filter(t => t.length > 0);
+}
+
+function populateTagFilter(fullList) {
+  const select = elements.libraryTagFilter;
+  const previousValue = select.value;
+  const allTags = new Set();
+  fullList.forEach(v => parseTags(v.tags).forEach(t => allTags.add(t)));
+
+  select.innerHTML = '<option value="">All tags</option>' +
+    Array.from(allTags).sort((a, b) => a.localeCompare(b))
+      .map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join('');
+
+  if (allTags.has(previousValue)) select.value = previousValue;
+}
+
 async function loadLibraryVocab() {
   if (!window.api) return;
   let list = await window.api.listVocab();
+  populateTagFilter(list);
+
   const searchVal = elements.librarySearch.value.toLowerCase().trim();
   const sortBy = elements.librarySort.value;
+  const tagFilter = elements.libraryTagFilter.value;
 
   // Filter
   if (searchVal) {
-    list = list.filter(v => 
+    list = list.filter(v =>
       v.main_word.toLowerCase().includes(searchVal) ||
       (v.translation && v.translation.toLowerCase().includes(searchVal)) ||
       (v.example_sentence_vi && v.example_sentence_vi.toLowerCase().includes(searchVal)) ||
       (v.example_sentence_en && v.example_sentence_en.toLowerCase().includes(searchVal)) ||
       (v.related_words || []).some(rw => rw.toLowerCase().includes(searchVal))
     );
+  }
+
+  if (tagFilter) {
+    list = list.filter(v => parseTags(v.tags).includes(tagFilter));
   }
 
   // Sort
@@ -1285,7 +1545,12 @@ function renderLibraryTable(list) {
         <div class="word-cell">${escapeHtml(v.main_word)}</div>
         <div class="ipa-cell">${escapeHtml(v.ipa || '')}</div>
       </td>
-      <td>${escapeHtml(v.translation)}</td>
+      <td>
+        ${escapeHtml(v.translation)}
+        <div style="display:flex; flex-wrap:wrap; gap:4px; margin-top:4px;">
+          ${parseTags(v.tags).map(t => `<span class="tag tag-category">${escapeHtml(t)}</span>`).join('')}
+        </div>
+      </td>
       <td>
         <div style="display:flex; flex-wrap:wrap; gap:4px;">
           ${relatedWordsHtml}
@@ -1350,6 +1615,7 @@ function renderLibraryGrid(list) {
     const masteryPercent = Math.min(100, Math.round((avgInterval / MASTERY_INTERVAL_DAYS) * 100));
 
     const tagsHtml = (v.related_words || []).map(rw => `<span class="tag">${escapeHtml(rw)}</span>`).join('');
+    const categoryTagsHtml = parseTags(v.tags).map(t => `<span class="tag tag-category">${escapeHtml(t)}</span>`).join('');
 
     card.innerHTML = `
       <div class="vocab-card-header">
@@ -1358,6 +1624,7 @@ function renderLibraryGrid(list) {
       </div>
       <div class="vocab-card-translation">${escapeHtml(v.translation)}</div>
       ${v.example_sentence_en ? `<div class="vocab-card-sentence">${escapeHtml(v.example_sentence_en)}</div>` : ''}
+      ${categoryTagsHtml ? `<div class="vocab-card-tags">${categoryTagsHtml}</div>` : ''}
       ${tagsHtml ? `<div class="vocab-card-tags">${tagsHtml}</div>` : ''}
       <div class="vocab-card-mastery">
         <div class="vocab-card-mastery-label"><span>Mastery</span><span>${masteryPercent}%</span></div>
@@ -1391,7 +1658,16 @@ function editVocab(v) {
   elements.vocabTranslation.value = v.translation;
   elements.vocabSentenceVi.value = v.example_sentence_vi || '';
   elements.vocabSentenceEn.value = v.example_sentence_en || '';
-  
+  elements.vocabTags.value = v.tags || '';
+
+  currentEditingVocab = v;
+  elements.grammarNotesSection.classList.remove('hide');
+  if (v.grammar_notes) {
+    elements.grammarNotesOutput.innerHTML = `<div class="console-line ai">${escapeHtml(v.grammar_notes)}</div>`;
+  } else {
+    elements.grammarNotesOutput.innerHTML = `<div class="console-line system">Chưa có giải thích. Bấm Generate để AI phân tích từ loại và collocation phổ biến.</div>`;
+  }
+
   elements.addVocabForm.querySelector('button[type="submit"]').innerHTML = `
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="btn-icon">
       <path stroke-linecap="round" stroke-linejoin="round" d="M16.862 4.487l1.687-1.688a1.875 1.875 0 112.652 2.652L10.582 16.07a4.5 4.5 0 01-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 011.13-1.897l8.932-8.931zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0115.75 21H5.25A2.25 2.25 0 013 18.75V8.25A2.25 2.25 0 015.25 6H10" />
@@ -1930,40 +2206,12 @@ function finishFallbackGrading(wasCorrect) {
   finishActiveCard();
 }
 
-async function finishActiveCard() {
-  const vocab = activeReviewQueue[currentReviewIndex];
-  
-  // Calculate Quality Score (0 to 5)
-  // spellingFailed (T/F), related (count/total), translationFailed (T/F)
-  let quality = 3; // Acceptable by default
-  
-  const spellingOK = !vocab.spellingFailed;
-  const translationOK = !vocab.translationFailed;
-  
-  // Calculate relative accuracy of related words
-  let relatedAccuracy = 1.0;
-  if (vocab.relatedTotal > 0) {
-    relatedAccuracy = vocab.relatedCountCorrect / vocab.relatedTotal;
-  }
-  
-  if (spellingOK && translationOK) {
-    if (relatedAccuracy === 1.0) quality = 5; // Perfect
-    else if (relatedAccuracy >= 0.5) quality = 4; // Good
-    else quality = 3;
-  } else if (spellingOK && !translationOK) {
-    quality = 2; // Hard
-  } else if (!spellingOK && translationOK) {
-    quality = 3; // Spelled wrong but translation is correct
-  } else {
-    // Both failed
-    quality = 1; // Very hard
-  }
-  
-  // Standard SM-2 Spaced Repetition Algorithm
-  let interval = vocab.interval || 1;
-  let easeFactor = vocab.ease_factor || 2.5;
-  let repetitions = vocab.repetitions || 0;
-  
+// Standard SM-2 Spaced Repetition Algorithm, shared by the Review Arena and the mini-review widget.
+function computeSm2Update(interval, easeFactor, repetitions, quality) {
+  interval = interval || 1;
+  easeFactor = easeFactor || 2.5;
+  repetitions = repetitions || 0;
+
   if (quality < 3) {
     // Reset repetitions & interval
     repetitions = 0;
@@ -1978,22 +2226,57 @@ async function finishActiveCard() {
     }
     repetitions = repetitions + 1;
   }
-  
+
   // Ease factor adjuster formula
   easeFactor = easeFactor + (0.1 - (5 - quality) * (0.08 + (5 - quality) * 0.02));
   easeFactor = Math.max(1.3, easeFactor); // Keep minimum ease factor
-  
-  // Calculate next review timestamp (Local Time ISO)
+
+  // Calculate next review timestamp (Local Time ISO, SQLite format: YYYY-MM-DD HH:MM:SS)
   const nextReviewDate = new Date();
   nextReviewDate.setDate(nextReviewDate.getDate() + interval);
-  
-  // SQLite format: YYYY-MM-DD HH:MM:SS
   const pad = (num) => String(num).padStart(2, '0');
   const nextReviewIso = `${nextReviewDate.getFullYear()}-${pad(nextReviewDate.getMonth()+1)}-${pad(nextReviewDate.getDate())} ${pad(nextReviewDate.getHours())}:${pad(nextReviewDate.getMinutes())}:${pad(nextReviewDate.getSeconds())}`;
-  
+
+  return { interval, easeFactor, repetitions, nextReviewIso };
+}
+
+async function finishActiveCard() {
+  const vocab = activeReviewQueue[currentReviewIndex];
+
+  // Calculate Quality Score (0 to 5)
+  // spellingFailed (T/F), related (count/total), translationFailed (T/F)
+  let quality = 3; // Acceptable by default
+
+  const spellingOK = !vocab.spellingFailed;
+  const translationOK = !vocab.translationFailed;
+
+  // Calculate relative accuracy of related words
+  let relatedAccuracy = 1.0;
+  if (vocab.relatedTotal > 0) {
+    relatedAccuracy = vocab.relatedCountCorrect / vocab.relatedTotal;
+  }
+
+  if (spellingOK && translationOK) {
+    if (relatedAccuracy === 1.0) quality = 5; // Perfect
+    else if (relatedAccuracy >= 0.5) quality = 4; // Good
+    else quality = 3;
+  } else if (spellingOK && !translationOK) {
+    quality = 2; // Hard
+  } else if (!spellingOK && translationOK) {
+    quality = 3; // Spelled wrong but translation is correct
+  } else {
+    // Both failed
+    quality = 1; // Very hard
+  }
+
+  const { interval, easeFactor, repetitions, nextReviewIso } = computeSm2Update(
+    vocab.interval, vocab.ease_factor, vocab.repetitions, quality
+  );
+
   // Update in SQLite database
   await window.api.updateReview(vocab.id, interval, easeFactor, repetitions, nextReviewIso);
-  
+  await window.api.logReviewEvent(vocab.vocabulary_id, 'review', quality >= 3);
+
   logToConsole(elements.reviewLogsBox, `Updated SM-2: Interval ${interval}d, Ease: ${easeFactor.toFixed(2)}, Next: ${nextReviewIso}`, 'system');
 
   // Move forward
@@ -2014,10 +2297,6 @@ function showReviewComplete() {
   elements.summaryCorrectFirst.textContent = sessionStats.spellingCorrect;
   elements.summaryAiEvals.textContent = sessionStats.aiGradings;
   
-  // Update study streak daily trigger
-  updateActiveStreak();
-  recordReviewActivity(sessionStats.reviewed);
-
   // Update daily goal progress
   const today = new Date().toDateString();
   const prevDate = localStorage.getItem('daily-reviewed-date');
@@ -2033,6 +2312,456 @@ function showReviewComplete() {
     showToast(`Session done! ${dailyCount}/${goalTarget} daily goal progress.`, 'info', 4000);
   }
   updateGoalRing();
+}
+
+// --- PRACTICE ENGINE (Quiz / Fill-in-the-blank / Dictation) ---
+// Supplementary drills that log to review_log for stats, but never touch the SM-2 schedule.
+let practiceMode = 'quiz';
+let practiceQueue = [];
+let practiceIndex = 0;
+let practiceStats = { total: 0, correct: 0 };
+
+const PRACTICE_MODE_LABELS = {
+  quiz: 'Quiz trắc nghiệm',
+  fill_blank: 'Điền từ',
+  dictation: 'Nghe - chép chính tả'
+};
+
+function shuffleArray(arr) {
+  const result = arr.slice();
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+}
+
+function escapeRegex(str) {
+  return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+}
+
+function getMainWordFirstPart(vocab) {
+  return (vocab.main_word || '').split('&')[0].trim();
+}
+
+function isVocabDue(v) {
+  const items = (v.related_details && v.related_details.length > 0)
+    ? v.related_details
+    : [{ next_review: v.next_review }];
+  return items.some(rd => new Date(rd.next_review) <= new Date());
+}
+
+function normalizeAnswerText(str) {
+  return (str || '').trim().toLowerCase().replace(/[.,!?;:"'’]/g, '').replace(/\s+/g, ' ');
+}
+
+function initializePracticeTab() {
+  elements.practiceStartState.classList.remove('hide');
+  elements.practiceActiveState.classList.add('hide');
+  elements.practiceFinishedState.classList.add('hide');
+}
+
+function setupPracticeHandlers() {
+  elements.practiceModeToggle.querySelectorAll('.practice-mode-btn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      practiceMode = btn.dataset.mode;
+      elements.practiceModeToggle.querySelectorAll('.practice-mode-btn').forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+    });
+  });
+
+  elements.btnStartPracticeSession.addEventListener('click', startPracticeSession);
+  elements.btnPracticeSubmit.addEventListener('click', submitPracticeAnswer);
+  elements.practiceTextInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') submitPracticeAnswer();
+  });
+  elements.btnPracticeNext.addEventListener('click', goToNextPracticeQuestion);
+  elements.practiceAudioBtn.addEventListener('click', () => {
+    const q = practiceQueue[practiceIndex];
+    if (q) speak(q.speakText || getMainWordFirstPart(q.vocab));
+  });
+  elements.btnPracticeCompleteDashboard.addEventListener('click', () => switchTab('dashboard'));
+}
+
+function buildPracticeQuizQuestion(vocab, pool) {
+  const direction = Math.random() < 0.5 ? 'word_to_meaning' : 'meaning_to_word';
+  const word = getMainWordFirstPart(vocab);
+  const meaning = vocab.translation;
+  const correctAnswer = direction === 'word_to_meaning' ? meaning : word;
+  const promptText = direction === 'word_to_meaning'
+    ? `Từ "${word}" có nghĩa là gì?`
+    : `Từ nào có nghĩa là "${meaning}"?`;
+
+  const distractorPool = pool.filter(v => v.id !== vocab.id);
+  const distractors = shuffleArray(distractorPool)
+    .slice(0, 3)
+    .map(v => direction === 'word_to_meaning' ? v.translation : getMainWordFirstPart(v));
+
+  const options = shuffleArray([correctAnswer, ...distractors]);
+
+  return { vocab, mode: 'quiz', promptText, options, correctAnswer };
+}
+
+function buildPracticeFillBlankQuestion(vocab) {
+  const word = getMainWordFirstPart(vocab);
+  const sentence = vocab.example_sentence_en;
+  const regex = new RegExp('\\b' + escapeRegex(word) + '\\b', 'i');
+  const blanked = sentence.replace(regex, '____');
+  return { vocab, mode: 'fill_blank', promptText: blanked, correctAnswer: word };
+}
+
+function buildPracticeDictationQuestion(vocab) {
+  const textToSpeak = vocab.example_sentence_en || getMainWordFirstPart(vocab);
+  return {
+    vocab,
+    mode: 'dictation',
+    promptText: 'Nghe và gõ lại chính xác nội dung bạn vừa nghe.',
+    correctAnswer: textToSpeak,
+    speakText: textToSpeak
+  };
+}
+
+async function startPracticeSession() {
+  const pool = elements.practicePoolSelect.value;
+  let vocabList = await window.api.listVocab();
+
+  if (pool === 'due') {
+    vocabList = vocabList.filter(isVocabDue);
+  }
+
+  elements.practiceStartHint.classList.add('hide');
+
+  let usablePool = vocabList;
+  if (practiceMode === 'quiz') {
+    if (vocabList.length < 4) {
+      elements.practiceStartHint.textContent = 'Cần ít nhất 4 từ vựng trong nguồn đã chọn để tạo Quiz trắc nghiệm.';
+      elements.practiceStartHint.classList.remove('hide');
+      return;
+    }
+  } else if (practiceMode === 'fill_blank') {
+    usablePool = vocabList.filter(v => {
+      if (!v.example_sentence_en) return false;
+      const word = getMainWordFirstPart(v);
+      if (!word) return false;
+      const regex = new RegExp('\\b' + escapeRegex(word) + '\\b', 'i');
+      return regex.test(v.example_sentence_en);
+    });
+    if (usablePool.length === 0) {
+      elements.practiceStartHint.textContent = 'Chưa có câu ví dụ phù hợp để tạo bài Điền từ. Hãy thêm câu ví dụ tiếng Anh cho từ vựng trước.';
+      elements.practiceStartHint.classList.remove('hide');
+      return;
+    }
+  } else if (practiceMode === 'dictation') {
+    if (vocabList.length === 0) {
+      elements.practiceStartHint.textContent = 'Không có từ vựng nào trong nguồn đã chọn.';
+      elements.practiceStartHint.classList.remove('hide');
+      return;
+    }
+  }
+
+  const questionCount = Math.min(10, usablePool.length);
+  const selected = shuffleArray(usablePool).slice(0, questionCount);
+
+  practiceQueue = selected.map(vocab => {
+    if (practiceMode === 'quiz') return buildPracticeQuizQuestion(vocab, vocabList);
+    if (practiceMode === 'fill_blank') return buildPracticeFillBlankQuestion(vocab);
+    return buildPracticeDictationQuestion(vocab);
+  });
+
+  practiceIndex = 0;
+  practiceStats = { total: 0, correct: 0 };
+
+  elements.practiceStartState.classList.add('hide');
+  elements.practiceActiveState.classList.remove('hide');
+
+  buildPracticeSegmentTrack();
+  loadPracticeQuestion();
+}
+
+function buildPracticeSegmentTrack() {
+  const track = elements.practiceSegmentTrack;
+  track.innerHTML = '';
+  practiceQueue.forEach((_, i) => {
+    const seg = document.createElement('div');
+    seg.className = 'segment';
+    seg.id = `practice-segment-${i}`;
+    track.appendChild(seg);
+  });
+}
+
+function updatePracticeSegmentTrack() {
+  practiceQueue.forEach((_, i) => {
+    const seg = document.getElementById(`practice-segment-${i}`);
+    if (!seg) return;
+    seg.classList.remove('done', 'current');
+    if (i < practiceIndex) seg.classList.add('done');
+    else if (i === practiceIndex) seg.classList.add('current');
+  });
+}
+
+function renderPracticeQuizOptions(q) {
+  const container = elements.practiceQuizOptions;
+  container.innerHTML = '';
+  q.options.forEach(option => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'practice-option-btn';
+    btn.textContent = option;
+    btn.addEventListener('click', () => gradePracticeAnswer(option === q.correctAnswer, option));
+    container.appendChild(btn);
+  });
+}
+
+function loadPracticeQuestion() {
+  const q = practiceQueue[practiceIndex];
+
+  elements.practiceCurrentIndex.textContent = practiceIndex + 1;
+  elements.practiceTotalCount.textContent = practiceQueue.length;
+  elements.practiceModeLabel.textContent = PRACTICE_MODE_LABELS[q.mode];
+  updatePracticeSegmentTrack();
+
+  elements.practiceFeedback.classList.add('hide');
+  elements.practiceFeedback.innerHTML = '';
+  elements.btnPracticeNext.classList.add('hide');
+  elements.practiceTextInput.value = '';
+  elements.practiceTextInput.disabled = false;
+  elements.btnPracticeSubmit.disabled = false;
+
+  elements.practiceQuestionPrompt.textContent = q.promptText;
+
+  if (q.mode === 'quiz') {
+    elements.practiceQuestionTag.textContent = 'Chọn đáp án đúng';
+    elements.practiceAudioBtn.classList.add('hide');
+    elements.practiceInputArea.classList.add('hide');
+    elements.practiceQuizOptions.classList.remove('hide');
+    renderPracticeQuizOptions(q);
+  } else if (q.mode === 'fill_blank') {
+    elements.practiceQuestionTag.textContent = 'Điền vào chỗ trống';
+    elements.practiceAudioBtn.classList.add('hide');
+    elements.practiceQuizOptions.classList.add('hide');
+    elements.practiceInputArea.classList.remove('hide');
+    elements.practiceInputLabel.textContent = 'Nhập từ còn thiếu:';
+    setTimeout(() => elements.practiceTextInput.focus(), 100);
+  } else if (q.mode === 'dictation') {
+    elements.practiceQuestionTag.textContent = 'Nghe - chép chính tả';
+    elements.practiceAudioBtn.classList.remove('hide');
+    elements.practiceQuizOptions.classList.add('hide');
+    elements.practiceInputArea.classList.remove('hide');
+    elements.practiceInputLabel.textContent = 'Gõ lại câu bạn vừa nghe:';
+    setTimeout(() => {
+      elements.practiceTextInput.focus();
+      speak(q.speakText);
+    }, 150);
+  }
+}
+
+function submitPracticeAnswer() {
+  const q = practiceQueue[practiceIndex];
+  const userAnswer = elements.practiceTextInput.value;
+  if (!userAnswer.trim()) return;
+
+  const isCorrect = normalizeAnswerText(userAnswer) === normalizeAnswerText(q.correctAnswer);
+  gradePracticeAnswer(isCorrect, userAnswer);
+}
+
+async function gradePracticeAnswer(isCorrect, userAnswerDisplay) {
+  const q = practiceQueue[practiceIndex];
+
+  elements.practiceTextInput.disabled = true;
+  elements.btnPracticeSubmit.disabled = true;
+  elements.practiceQuizOptions.querySelectorAll('.practice-option-btn').forEach(btn => {
+    btn.disabled = true;
+    if (btn.textContent === q.correctAnswer) btn.classList.add('correct-option');
+    else if (btn.textContent === userAnswerDisplay) btn.classList.add('incorrect-option');
+  });
+
+  practiceStats.total++;
+  if (isCorrect) practiceStats.correct++;
+
+  const feedbackDiv = elements.practiceFeedback;
+  feedbackDiv.classList.remove('hide', 'correct-anim', 'incorrect-anim');
+  feedbackDiv.classList.add(isCorrect ? 'correct-anim' : 'incorrect-anim');
+  feedbackDiv.innerHTML = `
+    <div class="feedback-status ${isCorrect ? 'correct' : 'incorrect'}">
+      ${isCorrect ? 'Chính xác!' : 'Chưa đúng'}
+    </div>
+    <div class="feedback-answer-comparison">
+      <p>Đáp án đúng: <strong class="diff-correct">${escapeHtml(q.correctAnswer)}</strong></p>
+      ${!isCorrect && userAnswerDisplay ? `<p>Bạn đã trả lời: <span class="diff-wrong">${escapeHtml(userAnswerDisplay)}</span></p>` : ''}
+    </div>
+  `;
+  elements.btnPracticeNext.classList.remove('hide');
+  elements.btnPracticeNext.focus();
+
+  try {
+    await window.api.logReviewEvent(q.vocab.id, q.mode, isCorrect);
+  } catch (err) {
+    console.error('Failed to log practice event:', err);
+  }
+}
+
+function goToNextPracticeQuestion() {
+  if (practiceIndex + 1 < practiceQueue.length) {
+    practiceIndex++;
+    loadPracticeQuestion();
+  } else {
+    showPracticeComplete();
+  }
+}
+
+function showPracticeComplete() {
+  elements.practiceActiveState.classList.add('hide');
+  elements.practiceFinishedState.classList.remove('hide');
+
+  const accuracy = practiceStats.total > 0 ? Math.round((practiceStats.correct / practiceStats.total) * 100) : 0;
+  elements.practiceSummaryTotal.textContent = practiceStats.total;
+  elements.practiceSummaryCorrect.textContent = practiceStats.correct;
+  elements.practiceSummaryAccuracy.textContent = `${accuracy}%`;
+}
+
+// --- MINI REVIEW WIDGET (floating, draggable panel) ---
+let miniReviewQueue = [];
+let miniReviewIndex = 0;
+
+function updateMiniReviewBadge(count) {
+  if (count > 0) {
+    elements.miniReviewLauncherBadge.classList.remove('hide');
+    elements.miniReviewLauncherBadge.textContent = count;
+  } else {
+    elements.miniReviewLauncherBadge.classList.add('hide');
+  }
+}
+
+function setupMiniReviewDrag() {
+  const panel = elements.miniReviewPanel;
+  const header = elements.miniReviewHeader;
+  let dragging = false;
+  let offsetX = 0;
+  let offsetY = 0;
+
+  header.addEventListener('pointerdown', (e) => {
+    dragging = true;
+    const rect = panel.getBoundingClientRect();
+    offsetX = e.clientX - rect.left;
+    offsetY = e.clientY - rect.top;
+    panel.style.left = `${rect.left}px`;
+    panel.style.top = `${rect.top}px`;
+    panel.style.right = 'auto';
+    panel.style.bottom = 'auto';
+    header.setPointerCapture(e.pointerId);
+  });
+
+  header.addEventListener('pointermove', (e) => {
+    if (!dragging) return;
+    let newLeft = e.clientX - offsetX;
+    let newTop = e.clientY - offsetY;
+    newLeft = Math.max(0, Math.min(window.innerWidth - panel.offsetWidth, newLeft));
+    newTop = Math.max(0, Math.min(window.innerHeight - panel.offsetHeight, newTop));
+    panel.style.left = `${newLeft}px`;
+    panel.style.top = `${newTop}px`;
+  });
+
+  header.addEventListener('pointerup', (e) => {
+    dragging = false;
+    if (header.hasPointerCapture(e.pointerId)) header.releasePointerCapture(e.pointerId);
+  });
+}
+
+function setupMiniReviewWidget() {
+  setupMiniReviewDrag();
+
+  elements.miniReviewLauncher.addEventListener('click', async () => {
+    const isHidden = elements.miniReviewPanel.classList.contains('hide');
+    if (isHidden) {
+      elements.miniReviewPanel.classList.remove('hide');
+      await loadMiniReviewQueue();
+    } else {
+      elements.miniReviewPanel.classList.add('hide');
+    }
+  });
+
+  elements.btnMiniReviewClose.addEventListener('click', () => {
+    elements.miniReviewPanel.classList.add('hide');
+  });
+
+  elements.btnMiniReviewReveal.addEventListener('click', () => {
+    elements.miniReviewAnswer.classList.remove('hide');
+    elements.btnMiniReviewReveal.classList.add('hide');
+    elements.miniReviewGradeButtons.classList.remove('hide');
+  });
+
+  elements.btnMiniReviewAudio.addEventListener('click', () => {
+    const vocab = miniReviewQueue[miniReviewIndex];
+    if (vocab) speak(vocab.word.split('&')[0].trim());
+  });
+
+  elements.btnMiniReviewCorrect.addEventListener('click', () => gradeMiniReviewCard(true));
+  elements.btnMiniReviewWrong.addEventListener('click', () => gradeMiniReviewCard(false));
+}
+
+async function loadMiniReviewQueue() {
+  miniReviewQueue = await window.api.dueVocab();
+  miniReviewIndex = 0;
+  renderMiniReviewCard();
+}
+
+function renderMiniReviewCard() {
+  const vocab = miniReviewQueue[miniReviewIndex];
+  elements.miniReviewAnswer.classList.add('hide');
+  elements.miniReviewGradeButtons.classList.add('hide');
+  elements.btnMiniReviewReveal.classList.remove('hide');
+
+  if (!vocab) {
+    elements.miniReviewCard.classList.add('hide');
+    elements.miniReviewEmpty.classList.remove('hide');
+    return;
+  }
+
+  elements.miniReviewCard.classList.remove('hide');
+  elements.miniReviewEmpty.classList.add('hide');
+
+  const wordParts = vocab.word.split('&').map(s => s.trim());
+  const ipaParts = (vocab.ipa || '').split('&').map(s => s.trim());
+  const transParts = (vocab.translation || '').split('&').map(s => s.trim());
+
+  elements.miniReviewWord.textContent = wordParts[0] || vocab.word;
+  elements.miniReviewIpa.textContent = ipaParts[0] || vocab.ipa || '';
+  elements.miniReviewTranslation.textContent = transParts[0] || vocab.translation;
+  elements.miniReviewSentence.textContent = vocab.example_sentence_en || '';
+}
+
+async function gradeMiniReviewCard(isCorrect) {
+  const vocab = miniReviewQueue[miniReviewIndex];
+  if (!vocab) return;
+
+  const quality = isCorrect ? 4 : 1;
+  const { interval, easeFactor, repetitions, nextReviewIso } = computeSm2Update(
+    vocab.interval, vocab.ease_factor, vocab.repetitions, quality
+  );
+
+  await window.api.updateReview(vocab.id, interval, easeFactor, repetitions, nextReviewIso);
+  try {
+    await window.api.logReviewEvent(vocab.vocabulary_id, 'review', isCorrect);
+  } catch (err) {
+    console.error('Failed to log mini-review event:', err);
+  }
+
+  miniReviewIndex++;
+  renderMiniReviewCard();
+
+  if (currentTab === 'dashboard') {
+    await updateAppStats();
+  } else {
+    const due = await window.api.dueVocab();
+    dueCount = due.length;
+    updateMiniReviewBadge(dueCount);
+    if (dueCount > 0) {
+      elements.reviewBadge.classList.remove('hide');
+      elements.reviewBadge.textContent = dueCount;
+    } else {
+      elements.reviewBadge.classList.add('hide');
+    }
+  }
 }
 
 // --- BACKUP & EXPORT/IMPORT SERVICES ---

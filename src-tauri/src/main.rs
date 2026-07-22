@@ -51,6 +51,16 @@ struct Vocabulary {
     next_review: Option<String>,
     related_words: Vec<String>,
     related_details: Option<Vec<RelatedWordDetail>>,
+    tags: Option<String>,
+    grammar_notes: Option<String>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone)]
+struct ReviewLogRow {
+    vocabulary_id: i64,
+    source: String,
+    is_correct: bool,
+    created_at: String,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -84,10 +94,10 @@ fn set_setting(state: tauri::State<'_, DbState>, key: String, value: String) -> 
 fn list_vocab(state: tauri::State<'_, DbState>) -> Result<Vec<Vocabulary>, String> {
     let conn = Connection::open(&state.db_path).map_err(|e| e.to_string())?;
     let mut stmt = conn.prepare(
-        "SELECT id, main_word, ipa, translation, example_sentence_vi, example_sentence_en, created_at, interval, ease_factor, repetitions, next_review 
+        "SELECT id, main_word, ipa, translation, example_sentence_vi, example_sentence_en, created_at, interval, ease_factor, repetitions, next_review, tags, grammar_notes
          FROM vocabularies ORDER BY created_at DESC"
     ).map_err(|e| e.to_string())?;
-    
+
     let rows = stmt.query_map([], |row| {
         Ok(Vocabulary {
             id: Some(row.get(0)?),
@@ -103,6 +113,8 @@ fn list_vocab(state: tauri::State<'_, DbState>) -> Result<Vec<Vocabulary>, Strin
             next_review: Some(row.get(10)?),
             related_words: Vec::new(),
             related_details: None,
+            tags: row.get(11)?,
+            grammar_notes: row.get(12)?,
         })
     }).map_err(|e| e.to_string())?;
 
@@ -207,8 +219,8 @@ fn save_vocab(state: tauri::State<'_, DbState>, vocab: Vocabulary) -> Result<Sav
     let vocab_id = match vocab.id {
         Some(id) => {
             if let Err(e) = tx.execute(
-                "UPDATE vocabularies SET main_word=?1, ipa=?2, translation=?3, example_sentence_vi=?4, example_sentence_en=?5 WHERE id=?6",
-                (vocab.main_word.clone(), vocab.ipa, vocab.translation, vocab.example_sentence_vi, vocab.example_sentence_en, id)
+                "UPDATE vocabularies SET main_word=?1, ipa=?2, translation=?3, example_sentence_vi=?4, example_sentence_en=?5, tags=?6 WHERE id=?7",
+                (vocab.main_word.clone(), vocab.ipa, vocab.translation, vocab.example_sentence_vi, vocab.example_sentence_en, vocab.tags.clone(), id)
             ) {
                 let err_msg = e.to_string();
                 if err_msg.contains("UNIQUE constraint failed") {
@@ -220,8 +232,8 @@ fn save_vocab(state: tauri::State<'_, DbState>, vocab: Vocabulary) -> Result<Sav
         },
         None => {
             match tx.execute(
-                "INSERT INTO vocabularies (main_word, ipa, translation, example_sentence_vi, example_sentence_en) VALUES (?1, ?2, ?3, ?4, ?5)",
-                (vocab.main_word.clone(), vocab.ipa, vocab.translation, vocab.example_sentence_vi, vocab.example_sentence_en)
+                "INSERT INTO vocabularies (main_word, ipa, translation, example_sentence_vi, example_sentence_en, tags) VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                (vocab.main_word.clone(), vocab.ipa, vocab.translation, vocab.example_sentence_vi, vocab.example_sentence_en, vocab.tags.clone())
             ) {
                 Ok(_) => tx.last_insert_rowid(),
                 Err(e) => {
@@ -319,6 +331,51 @@ fn update_review(
 #[tauri::command]
 fn get_db_path(state: tauri::State<'_, DbState>) -> String {
     state.db_path.to_string_lossy().into_owned()
+}
+
+#[tauri::command]
+fn log_review_event(state: tauri::State<'_, DbState>, vocabulary_id: i64, source: String, is_correct: bool) -> Result<(), String> {
+    let conn = Connection::open(&state.db_path).map_err(|e| e.to_string())?;
+    conn.execute(
+        "INSERT INTO review_log (vocabulary_id, source, is_correct) VALUES (?1, ?2, ?3)",
+        (vocabulary_id, source, is_correct)
+    ).map_err(|e| e.to_string())?;
+    Ok(())
+}
+
+#[tauri::command]
+fn get_review_log(state: tauri::State<'_, DbState>, days: i64) -> Result<Vec<ReviewLogRow>, String> {
+    let conn = Connection::open(&state.db_path).map_err(|e| e.to_string())?;
+    let mut stmt = conn.prepare(
+        "SELECT vocabulary_id, source, is_correct, created_at FROM review_log
+         WHERE created_at >= datetime('now', 'localtime', ?1) ORDER BY created_at ASC"
+    ).map_err(|e| e.to_string())?;
+
+    let modifier = format!("-{} days", days);
+    let rows = stmt.query_map([modifier], |row| {
+        Ok(ReviewLogRow {
+            vocabulary_id: row.get(0)?,
+            source: row.get(1)?,
+            is_correct: row.get(2)?,
+            created_at: row.get(3)?,
+        })
+    }).map_err(|e| e.to_string())?;
+
+    let mut list = Vec::new();
+    for row in rows {
+        list.push(row.map_err(|e| e.to_string())?);
+    }
+    Ok(list)
+}
+
+#[tauri::command]
+fn save_grammar_notes(state: tauri::State<'_, DbState>, id: i64, notes: String) -> Result<(), String> {
+    let conn = Connection::open(&state.db_path).map_err(|e| e.to_string())?;
+    conn.execute(
+        "UPDATE vocabularies SET grammar_notes = ?1 WHERE id = ?2",
+        (notes, id)
+    ).map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -427,11 +484,24 @@ fn main() {
             let _ = conn.execute("ALTER TABLE related_words ADD COLUMN ease_factor REAL DEFAULT 2.5;", []);
             let _ = conn.execute("ALTER TABLE related_words ADD COLUMN repetitions INTEGER DEFAULT 0;", []);
             let _ = conn.execute("ALTER TABLE related_words ADD COLUMN next_review DATETIME DEFAULT '1970-01-01 00:00:00';", []);
+            let _ = conn.execute("ALTER TABLE vocabularies ADD COLUMN tags TEXT;", []);
+            let _ = conn.execute("ALTER TABLE vocabularies ADD COLUMN grammar_notes TEXT;", []);
 
             conn.execute(
                 "CREATE TABLE IF NOT EXISTS settings (
                     key TEXT PRIMARY KEY,
                     value TEXT
+                );",
+                [],
+            )?;
+
+            conn.execute(
+                "CREATE TABLE IF NOT EXISTS review_log (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    vocabulary_id INTEGER REFERENCES vocabularies(id) ON DELETE CASCADE,
+                    source TEXT NOT NULL,
+                    is_correct INTEGER NOT NULL,
+                    created_at DATETIME DEFAULT (datetime('now', 'localtime'))
                 );",
                 [],
             )?;
@@ -451,7 +521,10 @@ fn main() {
             update_review,
             call_groq,
             get_groq_models,
-            get_db_path
+            get_db_path,
+            log_review_event,
+            get_review_log,
+            save_grammar_notes
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
