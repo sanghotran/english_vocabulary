@@ -704,15 +704,15 @@ Generate details for combining the English words: "${mainWord}" and "${relatedAr
 Provide:
 1. IPA (International Phonetic Alphabet) pronunciation for both words separated by & (e.g. /word1/ & /word2/).
 2. Individual Vietnamese meanings for the words separated by & (e.g. meaning1 & meaning2). IMPORTANT: Do NOT include the English words themselves in the translation text.
-3. A creative, natural Vietnamese sentence demonstrating the use of BOTH words in the same context.
-4. The English translation of that sentence.
+3. A creative, natural English sentence demonstrating the use of BOTH words in the same context.
+4. A pure Vietnamese translation of that English sentence. IMPORTANT: Do NOT mix or inject the English words into the Vietnamese sentence.
 
 You MUST respond strictly with a valid JSON object in this format:
 {
   "ipa": "/.../ & /.../",
   "translation": "meaning of word 1 & meaning of word 2",
-  "example_sentence_vi": "Vietnamese example sentence containing both words",
-  "example_sentence_en": "English translation of the example sentence"
+  "example_sentence_vi": "Pure Vietnamese translation of the example sentence",
+  "example_sentence_en": "English sentence containing both words"
 }
 
 Do not write markdown wrappers (e.g. do NOT include \`\`\`json or \`\`\`). Output only the raw JSON.
@@ -1035,7 +1035,10 @@ function setupReviewHandlers() {
   // Audio testing inside Review Stage 1
   elements.btnAudioS1.addEventListener('click', () => {
     const activeWord = activeReviewQueue[currentReviewIndex];
-    if (activeWord) speak(activeWord.word);
+    if (activeWord) {
+      const parts = activeWord.word.split('&').map(s => s.trim());
+      speak(parts[0]);
+    }
   });
 
   // Stage 1 checking
@@ -1217,11 +1220,11 @@ function checkSpellingStage() {
   feedbackDiv.classList.remove('hide');
   
   // Voice confirmation
-  speak(vocab.word);
+  speak(correct);
   
   if (userTyped === correct) {
     sessionStats.spellingCorrect++;
-    logToConsole(elements.reviewLogsBox, `Spelling correct: "${vocab.word}"`, 'success');
+    logToConsole(elements.reviewLogsBox, `Spelling correct: "${correct}"`, 'success');
     feedbackDiv.innerHTML = `
       <div class="feedback-status correct">
         <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>
