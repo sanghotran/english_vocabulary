@@ -2348,6 +2348,18 @@ function getMainTranslationFirstPart(vocab) {
   return (vocab.translation || '').split('&')[0].trim();
 }
 
+function expandVocabToWordPairs(vocab) {
+  const words = (vocab.main_word || '').split('&').map(s => s.trim());
+  const meanings = (vocab.translation || '').split('&').map(s => s.trim());
+  const count = Math.min(words.length, meanings.length);
+  const pairs = [];
+  for (let i = 0; i < count; i++) {
+    if (!words[i] || !meanings[i]) continue;
+    pairs.push({ vocab, word: words[i], meaning: meanings[i], subId: `${vocab.id}#${i}` });
+  }
+  return pairs;
+}
+
 function isVocabDue(v) {
   const items = (v.related_details && v.related_details.length > 0)
     ? v.related_details
@@ -2387,23 +2399,28 @@ function setupPracticeHandlers() {
   elements.btnPracticeCompleteDashboard.addEventListener('click', () => switchTab('dashboard'));
 }
 
-function buildPracticeQuizQuestion(vocab, pool) {
+function buildPracticeQuizQuestion(item, pool) {
   const direction = Math.random() < 0.5 ? 'word_to_meaning' : 'meaning_to_word';
-  const word = getMainWordFirstPart(vocab);
-  const meaning = getMainTranslationFirstPart(vocab);
+  const { word, meaning } = item;
   const correctAnswer = direction === 'word_to_meaning' ? meaning : word;
   const promptText = direction === 'word_to_meaning'
     ? `Từ "${word}" có nghĩa là gì?`
     : `Từ nào có nghĩa là "${meaning}"?`;
 
-  const distractorPool = pool.filter(v => v.id !== vocab.id);
-  const distractors = shuffleArray(distractorPool)
-    .slice(0, 3)
-    .map(v => direction === 'word_to_meaning' ? getMainTranslationFirstPart(v) : getMainWordFirstPart(v));
+  const distractorPool = pool.filter(p => p.subId !== item.subId);
+  const usedAnswers = new Set([correctAnswer]);
+  const distractors = [];
+  for (const p of shuffleArray(distractorPool)) {
+    const candidate = direction === 'word_to_meaning' ? p.meaning : p.word;
+    if (!candidate || usedAnswers.has(candidate)) continue;
+    usedAnswers.add(candidate);
+    distractors.push(candidate);
+    if (distractors.length === 3) break;
+  }
 
   const options = shuffleArray([correctAnswer, ...distractors]);
 
-  return { vocab, mode: 'quiz', promptText, options, correctAnswer };
+  return { vocab: item.vocab, mode: 'quiz', promptText, options, correctAnswer };
 }
 
 function buildPracticeFillBlankQuestion(vocab) {
@@ -2442,6 +2459,22 @@ async function startPracticeSession() {
       elements.practiceStartHint.classList.remove('hide');
       return;
     }
+    const allPairs = vocabList.flatMap(expandVocabToWordPairs);
+    const seenWords = new Set();
+    const seenMeanings = new Set();
+    usablePool = allPairs.filter(p => {
+      const wordKey = p.word.toLowerCase();
+      const meaningKey = p.meaning.toLowerCase();
+      if (seenWords.has(wordKey) || seenMeanings.has(meaningKey)) return false;
+      seenWords.add(wordKey);
+      seenMeanings.add(meaningKey);
+      return true;
+    });
+    if (usablePool.length < 4) {
+      elements.practiceStartHint.textContent = 'Cần ít nhất 4 từ/nghĩa khác nhau để tạo Quiz trắc nghiệm.';
+      elements.practiceStartHint.classList.remove('hide');
+      return;
+    }
   } else if (practiceMode === 'fill_blank') {
     usablePool = vocabList.filter(v => {
       if (!v.example_sentence_en) return false;
@@ -2466,10 +2499,10 @@ async function startPracticeSession() {
   const questionCount = Math.min(10, usablePool.length);
   const selected = shuffleArray(usablePool).slice(0, questionCount);
 
-  practiceQueue = selected.map(vocab => {
-    if (practiceMode === 'quiz') return buildPracticeQuizQuestion(vocab, vocabList);
-    if (practiceMode === 'fill_blank') return buildPracticeFillBlankQuestion(vocab);
-    return buildPracticeDictationQuestion(vocab);
+  practiceQueue = selected.map(entry => {
+    if (practiceMode === 'quiz') return buildPracticeQuizQuestion(entry, usablePool);
+    if (practiceMode === 'fill_blank') return buildPracticeFillBlankQuestion(entry);
+    return buildPracticeDictationQuestion(entry);
   });
 
   practiceIndex = 0;
