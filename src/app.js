@@ -2344,6 +2344,10 @@ function getMainWordFirstPart(vocab) {
   return (vocab.main_word || '').split('&')[0].trim();
 }
 
+function getMainTranslationFirstPart(vocab) {
+  return (vocab.translation || '').split('&')[0].trim();
+}
+
 function isVocabDue(v) {
   const items = (v.related_details && v.related_details.length > 0)
     ? v.related_details
@@ -2386,7 +2390,7 @@ function setupPracticeHandlers() {
 function buildPracticeQuizQuestion(vocab, pool) {
   const direction = Math.random() < 0.5 ? 'word_to_meaning' : 'meaning_to_word';
   const word = getMainWordFirstPart(vocab);
-  const meaning = vocab.translation;
+  const meaning = getMainTranslationFirstPart(vocab);
   const correctAnswer = direction === 'word_to_meaning' ? meaning : word;
   const promptText = direction === 'word_to_meaning'
     ? `Từ "${word}" có nghĩa là gì?`
@@ -2395,7 +2399,7 @@ function buildPracticeQuizQuestion(vocab, pool) {
   const distractorPool = pool.filter(v => v.id !== vocab.id);
   const distractors = shuffleArray(distractorPool)
     .slice(0, 3)
-    .map(v => direction === 'word_to_meaning' ? v.translation : getMainWordFirstPart(v));
+    .map(v => direction === 'word_to_meaning' ? getMainTranslationFirstPart(v) : getMainWordFirstPart(v));
 
   const options = shuffleArray([correctAnswer, ...distractors]);
 
