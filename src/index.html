@@ -188,12 +188,12 @@
                 
                 <div class="form-row">
                   <div class="form-group">
-                    <label for="vocab-main-word">Main Word *</label>
-                    <input type="text" id="vocab-main-word" placeholder="e.g. meticulous" required autocomplete="off">
+                    <label for="vocab-main-word">Word 1 *</label>
+                    <input type="text" id="vocab-main-word" placeholder="e.g. cat" required autocomplete="off">
                   </div>
                   <div class="form-group">
-                    <label for="vocab-related-words">Related Words (comma-separated) *</label>
-                    <input type="text" id="vocab-related-words" placeholder="e.g. meticulously, meticulousness" autocomplete="off">
+                    <label for="vocab-related-words">Word 2 (or more) *</label>
+                    <input type="text" id="vocab-related-words" placeholder="e.g. keyboard" autocomplete="off">
                   </div>
                 </div>
 
@@ -254,8 +254,8 @@
               <div class="helper-tips">
                 <h4>Tips:</h4>
                 <ul>
-                  <li>Input the main English word and family words first (e.g. <i>"comprehend"</i> and <i>"comprehension, comprehensible"</i>).</li>
-                  <li>Clicking **Generate Details** will query the Llama model on Groq to craft accurate translations and a contextual Vietnamese sentence containing your words.</li>
+                  <li>Input two random English words you want to practice together (e.g. <i>"cat"</i> and <i>"keyboard"</i>).</li>
+                  <li>Clicking **Generate Details** will query the Llama model on Groq to craft a creative sentence containing both words.</li>
                   <li>Ensure your **Groq API Key** is entered in the Settings tab first.</li>
                 </ul>
               </div>
@@ -391,7 +391,7 @@
                 <!-- STAGE 2: ASSOCIATED RELATED WORDS -->
                 <div id="review-stage-2" class="review-stage-panel hide">
                   <div class="card-prompt-header">
-                    <span class="stage-tag">Step 2 of 3: Associated Word Recall</span>
+                    <span class="stage-tag">Step 2 of 3: Word 2 Recall</span>
                   </div>
                   
                   <div class="flashcard-content-prompt">
@@ -406,8 +406,8 @@
                   </div>
 
                   <div class="flashcard-answer-input-area">
-                    <label for="review-s2-input">Type the related words (separated by commas):</label>
-                    <input type="text" id="review-s2-input" class="large-input" placeholder="e.g. word1, word2..." autocomplete="off">
+                    <label for="review-s2-input">Type Word 2:</label>
+                    <input type="text" id="review-s2-input" class="large-input" placeholder="Enter word 2..." autocomplete="off">
                     
                     <!-- Feedback section for S2 -->
                     <div id="review-s2-feedback" class="stage-feedback hide">

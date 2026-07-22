@@ -700,18 +700,18 @@ function setupFormHandlers() {
     
     const systemPrompt = `You are a helpful and precise English vocabulary builder. You generate structured dictionary details.`;
     const userPrompt = `
-Generate details for English word "${mainWord}" and its related/derivative words: ${relatedArr.length > 0 ? relatedArr.join(', ') : 'none'}.
+Generate details for combining the English words: "${mainWord}" and "${relatedArr.length > 0 ? relatedArr.join(', ') : 'none'}".
 Provide:
-1. IPA (International Phonetic Alphabet) pronunciation for "${mainWord}".
-2. Vietnamese translation for "${mainWord}".
-3. A natural, contextual Vietnamese sentence demonstrating the use of "${mainWord}" (and related words if natural).
+1. IPA (International Phonetic Alphabet) pronunciation for both words (e.g. /word1/ & /word2/).
+2. A combined Vietnamese translation or individual meanings for the words.
+3. A creative, natural Vietnamese sentence demonstrating the use of BOTH words in the same context.
 4. The English translation of that sentence.
 
 You MUST respond strictly with a valid JSON object in this format:
 {
-  "ipa": "/.../",
-  "translation": "Vietnamese meaning",
-  "example_sentence_vi": "Vietnamese example sentence",
+  "ipa": "/.../ & /.../",
+  "translation": "Vietnamese meaning(s)",
+  "example_sentence_vi": "Vietnamese example sentence containing both words",
   "example_sentence_en": "English translation of the example sentence"
 }
 
@@ -769,21 +769,26 @@ Do not write markdown wrappers (e.g. do NOT include \`\`\`json or \`\`\`). Outpu
     e.preventDefault();
     
     const id = elements.vocabId.value ? parseInt(elements.vocabId.value) : null;
-    const main_word = elements.vocabMainWord.value.trim();
+    const main_word_input = elements.vocabMainWord.value.trim();
     const relatedWordsStr = elements.vocabRelatedWords.value.trim();
     const ipa = elements.vocabIpa.value.trim();
     const translation = elements.vocabTranslation.value.trim();
     const example_sentence_vi = elements.vocabSentenceVi.value.trim();
     const example_sentence_en = elements.vocabSentenceEn.value.trim();
 
-    if (!main_word || !translation) {
-      alert('Main Word and Vietnamese Translation are required.');
+    if (!main_word_input || !translation) {
+      alert('Word 1 and Vietnamese Translation are required.');
       return;
     }
 
-    const related_words = relatedWordsStr 
+    let related_words = relatedWordsStr 
       ? relatedWordsStr.split(',').map(s => s.trim()).filter(s => s.length > 0)
       : [];
+      
+    let main_word = main_word_input;
+    if (related_words.length > 0) {
+      main_word = `${main_word_input} & ${related_words.join(' & ')}`;
+    }
 
     const vocab = {
       id,
@@ -792,7 +797,7 @@ Do not write markdown wrappers (e.g. do NOT include \`\`\`json or \`\`\`). Outpu
       translation,
       example_sentence_vi,
       example_sentence_en,
-      related_words
+      related_words: [main_word] // Store as 1 card
     };
 
     try {
@@ -1121,12 +1126,15 @@ function transitionToStage(stageNum) {
     elements.reviewIpaPrompt.textContent = vocab.ipa || '[No IPA]';
     elements.reviewTranslationPrompt.textContent = vocab.translation;
     
+    const parts = vocab.word.split('&').map(s => s.trim());
+    const word1 = parts[0];
+
     // Focus
     setTimeout(() => {
       elements.reviewS1Input.focus();
       // Auto-play audio if checked
       if (elements.reviewAutoAudio.checked) {
-        speak(vocab.word);
+        speak(word1);
       }
     }, 100);
     
@@ -1190,7 +1198,8 @@ function transitionToStage(stageNum) {
 function checkSpellingStage() {
   const vocab = activeReviewQueue[currentReviewIndex];
   const userTyped = elements.reviewS1Input.value.trim().toLowerCase();
-  const correct = vocab.word.trim().toLowerCase();
+  const parts = vocab.word.split('&').map(s => s.trim().toLowerCase());
+  const correct = parts[0];
   
   if (!userTyped) return;
   
@@ -1247,60 +1256,41 @@ function checkRelatedStage() {
   const feedbackDiv = elements.reviewS2Feedback;
   feedbackDiv.classList.remove('hide');
   
-  const userWords = userTyped ? userTyped.split(',').map(s => s.trim().toLowerCase()).filter(s => s.length > 0) : [];
+  const parts = vocab.word.split('&').map(s => s.trim().toLowerCase());
+  const word2 = parts.length > 1 ? parts.slice(1).join(' & ') : '';
   
-  // Filter out the active word from the list of related words to recall
-  const correctWords = (vocab.related_words || [])
-    .map(w => w.trim().toLowerCase())
-    .filter(w => w !== vocab.word.trim().toLowerCase());
-  
-  if (correctWords.length === 0) {
-    // If no related words were stored
+  if (!word2) {
     feedbackDiv.innerHTML = `
-      <div class="feedback-status correct">No other related words were stored for this word.</div>
+      <div class="feedback-status correct">No Word 2 stored for this card.</div>
     `;
-    vocab.relatedCountCorrect = 0;
-    vocab.relatedTotal = 0;
+    vocab.relatedCountCorrect = 1;
+    vocab.relatedTotal = 1;
     elements.btnS2Next.focus();
     return;
   }
   
-  const matched = [];
-  const unmatched = [];
+  const isCorrect = userTyped === word2;
+  vocab.relatedCountCorrect = isCorrect ? 1 : 0;
+  vocab.relatedTotal = 1;
   
-  correctWords.forEach(cw => {
-    if (userWords.includes(cw)) {
-      matched.push(cw);
-    } else {
-      unmatched.push(cw);
-    }
-  });
-  
-  vocab.relatedCountCorrect = matched.length;
-  vocab.relatedTotal = correctWords.length;
-  
-  let scoreClass = 'correct';
-  let scoreText = 'Perfect Recall!';
-  
-  if (matched.length === 0) {
-    scoreClass = 'incorrect';
-    scoreText = 'Study Needed';
-  } else if (matched.length < correctWords.length) {
-    scoreClass = 'incorrect'; // technically partial, but flag it
-    scoreText = 'Partial Recall';
+  if (isCorrect) {
+    logToConsole(elements.reviewLogsBox, `Word 2 recalled: "${word2}"`, 'success');
+    feedbackDiv.innerHTML = `
+      <div class="feedback-status correct">Perfect Recall!</div>
+      <div class="feedback-answer-comparison">
+        <p>You correctly remembered: <strong class="diff-correct">${escapeHtml(word2)}</strong></p>
+      </div>
+    `;
+  } else {
+    logToConsole(elements.reviewLogsBox, `Word 2 incorrect (Expected: "${word2}", Typed: "${userTyped}")`, 'error');
+    feedbackDiv.innerHTML = `
+      <div class="feedback-status incorrect">Study Needed</div>
+      <div class="feedback-answer-comparison">
+        <p>Correct Word 2: <strong class="diff-correct">${escapeHtml(word2)}</strong></p>
+        <p>Your input: <span class="diff-wrong">${escapeHtml(elements.reviewS2Input.value)}</span></p>
+      </div>
+    `;
   }
-  
-  logToConsole(elements.reviewLogsBox, `Related words recalled: ${matched.length}/${correctWords.length}`, matched.length === correctWords.length ? 'success' : 'system');
-
-  feedbackDiv.innerHTML = `
-    <div class="feedback-status ${scoreClass}">
-      ${scoreText} (${matched.length} of ${correctWords.length} matched)
-    </div>
-    <div class="feedback-answer-comparison">
-      <p>Matched: ${matched.map(w => `<span class="diff-correct">${escapeHtml(w)}</span>`).join(', ') || '<span class="text-muted">none</span>'}</p>
-      ${unmatched.length > 0 ? `<p class="mt-2">Missing: ${unmatched.map(w => `<span class="diff-wrong" style="text-decoration:none;">${escapeHtml(w)}</span>`).join(', ')}</p>` : ''}
-    </div>
-  `;
   elements.btnS2Next.focus();
 }
 

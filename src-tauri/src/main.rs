@@ -210,7 +210,11 @@ fn save_vocab(state: tauri::State<'_, DbState>, vocab: Vocabulary) -> Result<Sav
                 "UPDATE vocabularies SET main_word=?1, ipa=?2, translation=?3, example_sentence_vi=?4, example_sentence_en=?5 WHERE id=?6",
                 (vocab.main_word.clone(), vocab.ipa, vocab.translation, vocab.example_sentence_vi, vocab.example_sentence_en, id)
             ) {
-                return Ok(SaveResponse { success: false, id: None, error: Some(format!("Database error: {}", e)) });
+                let err_msg = e.to_string();
+                if err_msg.contains("UNIQUE constraint failed") {
+                    return Ok(SaveResponse { success: false, id: None, error: Some("Từ vựng này đã tồn tại trong danh sách!".to_string()) });
+                }
+                return Ok(SaveResponse { success: false, id: None, error: Some(format!("Database error: {}", err_msg)) });
             }
             id
         },
@@ -221,7 +225,11 @@ fn save_vocab(state: tauri::State<'_, DbState>, vocab: Vocabulary) -> Result<Sav
             ) {
                 Ok(_) => tx.last_insert_rowid(),
                 Err(e) => {
-                    return Ok(SaveResponse { success: false, id: None, error: Some(format!("Database error: {}", e)) });
+                    let err_msg = e.to_string();
+                    if err_msg.contains("UNIQUE constraint failed") {
+                        return Ok(SaveResponse { success: false, id: None, error: Some("Từ vựng này đã tồn tại trong danh sách!".to_string()) });
+                    }
+                    return Ok(SaveResponse { success: false, id: None, error: Some(format!("Database error: {}", err_msg)) });
                 }
             }
         }
