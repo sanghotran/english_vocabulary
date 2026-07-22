@@ -804,11 +804,10 @@ Do not write markdown wrappers (e.g. do NOT include \`\`\`json or \`\`\`). Outpu
       const result = await window.api.saveVocab(vocab);
       
       if (result && result.success) {
-        alert('Vocabulary saved successfully!');
+        logToConsole(document.getElementById('ai-assistant-output'), 'Vocabulary saved successfully!', 'success');
         resetForm();
         await updateAppStats();
         await loadRecentVocab();
-        switchTab('library');
       } else {
         alert(`Failed to save vocabulary: ${result?.error || 'Duplicate word error'}`);
       }
@@ -1173,6 +1172,7 @@ function transitionToStage(stageNum) {
     elements.reviewS3Input.disabled = false;
     elements.reviewS3Feedback.classList.add('hide');
     elements.reviewS3Feedback.innerHTML = '';
+    elements.btnS3Submit.disabled = false;
     elements.btnS3Submit.classList.remove('hide');
     elements.btnS3Finish.classList.add('hide');
     
