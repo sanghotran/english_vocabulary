@@ -146,29 +146,54 @@
             </button>
           </div>
 
-          <div class="recent-list-panel glass-panel">
-            <div class="panel-header">
-              <h3>Recently Added Vocabulary</h3>
-              <button id="dash-view-library" class="btn text">View All &rarr;</button>
+          <div class="dashboard-bottom-row">
+            <div class="recent-list-panel glass-panel">
+              <div class="panel-header">
+                <h3>Recently Added Vocabulary</h3>
+                <button id="dash-view-library" class="btn text">View All &rarr;</button>
+              </div>
+              <div class="table-container">
+                <table class="vocab-table">
+                  <thead>
+                    <tr>
+                      <th>Word</th>
+                      <th>IPA</th>
+                      <th>Vietnamese Translation</th>
+                      <th>Related Words</th>
+                      <th>Next Review</th>
+                    </tr>
+                  </thead>
+                  <tbody id="recent-vocab-list">
+                    <!-- Generated dynamically -->
+                  </tbody>
+                </table>
+              </div>
             </div>
-            <div class="table-container">
-              <table class="vocab-table">
-                <thead>
-                  <tr>
-                    <th>Word</th>
-                    <th>IPA</th>
-                    <th>Vietnamese Translation</th>
-                    <th>Related Words</th>
-                    <th>Next Review</th>
-                  </tr>
-                </thead>
-                <tbody id="recent-vocab-list">
-                  <!-- Generated dynamically -->
-                  <tr class="empty-state">
-                    <td colspan="5">No vocabulary added yet. Go to "Add Word" to start!</td>
-                  </tr>
-                </tbody>
-              </table>
+
+            <!-- Daily Goal Ring -->
+            <div class="daily-goal-card">
+              <div class="goal-ring-wrapper">
+                <svg class="goal-ring-svg" viewBox="0 0 100 100">
+                  <defs>
+                    <linearGradient id="goalGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                      <stop offset="0%" stop-color="#6366f1"/>
+                      <stop offset="100%" stop-color="#a855f7"/>
+                    </linearGradient>
+                  </defs>
+                  <circle class="goal-ring-bg" cx="50" cy="50" r="45"/>
+                  <circle class="goal-ring-progress" id="goal-ring-circle" cx="50" cy="50" r="45"/>
+                </svg>
+                <div class="goal-ring-center">
+                  <div class="goal-ring-percent" id="goal-ring-percent">0%</div>
+                  <div class="goal-ring-label">Today</div>
+                </div>
+              </div>
+              <div class="goal-text-title">Daily Goal</div>
+              <div class="goal-text-sub" id="goal-text-sub">Set a daily review target below</div>
+              <div class="goal-set-row">
+                <input type="number" id="goal-target-input" class="goal-input" min="1" max="200" value="10" placeholder="Goal">
+                <button id="btn-set-goal" class="btn primary goal-save-btn">Set</button>
+              </div>
             </div>
           </div>
         </section>
@@ -667,6 +692,8 @@
     </main>
   </div>
   
+  <!-- Toast Notification Container -->
+  <div id="toast-container"></div>
   <script src="app.js"></script>
 </body>
 </html>

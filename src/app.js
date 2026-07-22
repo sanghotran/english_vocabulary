@@ -216,6 +216,10 @@ document.addEventListener('DOMContentLoaded', async () => {
     setupDebugHandlers();
     console.log("Initialization: Debug handlers setup complete.");
     
+    setupGoalHandlers();
+    loadDailyGoal();
+    console.log("Initialization: Daily goal ring setup complete.");
+    
     // Initial load of statistics
     await updateAppStats();
     await loadRecentVocab();
@@ -233,6 +237,103 @@ function logToConsole(element, message, type = 'system') {
   line.textContent = `[${time}] ${message}`;
   element.appendChild(line);
   element.scrollTop = element.scrollHeight;
+}
+
+// --- TOAST NOTIFICATION SYSTEM ---
+const TOAST_ICONS = {
+  success: `<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>`,
+  error:   `<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>`,
+  info:    `<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>`,
+  warning: `<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>`
+};
+
+const TOAST_TITLES = { success: 'Success', error: 'Error', info: 'Info', warning: 'Warning' };
+
+function showToast(message, type = 'info', duration = 3500) {
+  const container = document.getElementById('toast-container');
+  if (!container) return;
+
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.innerHTML = `
+    <div class="toast-icon">${TOAST_ICONS[type] || TOAST_ICONS.info}</div>
+    <div class="toast-body">
+      <div class="toast-title">${TOAST_TITLES[type] || 'Notification'}</div>
+      <div class="toast-msg">${escapeHtml(message)}</div>
+    </div>
+    <button class="toast-close" aria-label="Dismiss">&times;</button>
+  `;
+
+  const dismiss = () => {
+    toast.classList.add('toast-exit');
+    setTimeout(() => toast.remove(), 320);
+  };
+
+  toast.querySelector('.toast-close').addEventListener('click', dismiss);
+  container.appendChild(toast);
+
+  if (duration > 0) setTimeout(dismiss, duration);
+  return toast;
+}
+
+// --- DAILY GOAL RING ---
+const CIRCUMFERENCE = 2 * Math.PI * 45; // r=45 → ~283
+
+function loadDailyGoal() {
+  const goalTarget = parseInt(localStorage.getItem('daily-goal-target') || '10');
+  const goalInput = document.getElementById('goal-target-input');
+  if (goalInput) goalInput.value = goalTarget;
+  updateGoalRing();
+}
+
+function updateGoalRing() {
+  const circle = document.getElementById('goal-ring-circle');
+  const percentEl = document.getElementById('goal-ring-percent');
+  const subEl = document.getElementById('goal-text-sub');
+  if (!circle || !percentEl) return;
+
+  const goalTarget = parseInt(localStorage.getItem('daily-goal-target') || '10');
+  const reviewed = parseInt(localStorage.getItem('daily-reviewed-today') || '0');
+  const lastDate = localStorage.getItem('daily-reviewed-date');
+  const today = new Date().toDateString();
+
+  // Reset daily counter if new day
+  const todayReviewed = (lastDate === today) ? reviewed : 0;
+  if (lastDate !== today) {
+    localStorage.setItem('daily-reviewed-today', '0');
+    localStorage.setItem('daily-reviewed-date', today);
+  }
+
+  const percent = Math.min(100, Math.round((todayReviewed / Math.max(1, goalTarget)) * 100));
+  const offset = CIRCUMFERENCE - (percent / 100) * CIRCUMFERENCE;
+
+  circle.style.strokeDashoffset = offset;
+  percentEl.textContent = `${percent}%`;
+
+  if (subEl) {
+    if (todayReviewed >= goalTarget) {
+      subEl.textContent = `🎉 Goal reached! ${todayReviewed} reviewed`;
+    } else {
+      subEl.textContent = `${todayReviewed} / ${goalTarget} words reviewed`;
+    }
+  }
+}
+
+function setupGoalHandlers() {
+  const btnSetGoal = document.getElementById('btn-set-goal');
+  const goalInput = document.getElementById('goal-target-input');
+  if (btnSetGoal && goalInput) {
+    btnSetGoal.addEventListener('click', () => {
+      const val = parseInt(goalInput.value);
+      if (isNaN(val) || val < 1) {
+        showToast('Please enter a valid goal (minimum 1 word).', 'warning');
+        return;
+      }
+      localStorage.setItem('daily-goal-target', val.toString());
+      updateGoalRing();
+      showToast(`Daily goal set to ${val} words!`, 'success', 3000);
+    });
+  }
 }
 
 // --- CONFIGURATION & SETTINGS SERVICE ---
@@ -426,7 +527,7 @@ function setupAudioEngine() {
       await window.api.setSetting('audio-rate', audioSettings.rate.toString());
       await window.api.setSetting('audio-pitch', audioSettings.pitch.toString());
       
-      alert('Audio settings saved successfully.');
+      showToast('Audio settings saved successfully!', 'success');
     }
   });
 }
@@ -606,8 +707,16 @@ async function loadRecentVocab() {
   elements.recentVocabList.innerHTML = '';
   if (recent.length === 0) {
     elements.recentVocabList.innerHTML = `
-      <tr class="empty-state">
-        <td colspan="5">No vocabulary added yet. Go to "Add Word" to start!</td>
+      <tr>
+        <td colspan="5">
+          <div class="empty-state-enhanced">
+            <div class="empty-icon">
+              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M12 6.042A8.967 8.967 0 006 3.75c-1.052 0-2.062.18-3 .512v14.25A8.987 8.987 0 016 18c2.305 0 4.408.867 6 2.292m0-14.25a8.966 8.966 0 016-2.292c1.052 0 2.062.18 3 .512v14.25A8.987 8.987 0 0018 18a8.967 8.967 0 00-6 2.292m0-14.25v14.25" /></svg>
+            </div>
+            <h4>No vocabulary yet</h4>
+            <p>Go to <strong>Add Word</strong> to start building your vocabulary!</p>
+          </div>
+        </td>
       </tr>
     `;
     return;
@@ -679,7 +788,7 @@ function setupFormHandlers() {
     const relatedWordsStr = elements.vocabRelatedWords.value.trim();
     
     if (!mainWord) {
-      alert('Please enter a Main Word first.');
+      showToast('Please enter a Main Word first.', 'warning');
       elements.vocabMainWord.focus();
       return;
     }
@@ -688,7 +797,7 @@ function setupFormHandlers() {
     const model = elements.settingsGroqModel.value;
 
     if (!apiKey) {
-      alert('AI API Key is missing. Please go to the "Settings" tab and enter your Groq API Key first.');
+      showToast('Groq API Key is missing. Go to Settings tab and enter your key first.', 'warning', 5000);
       switchTab('settings');
       return;
     }
@@ -762,7 +871,7 @@ Do not write markdown wrappers (e.g. do NOT include \`\`\`json or \`\`\`). Outpu
     } catch (err) {
       console.error(err);
       logToConsole(elements.aiAssistantOutput, `Error: ${err.message}`, 'error');
-      alert(`AI generation failed: ${err.message}`);
+      showToast(`AI generation failed: ${err.message}`, 'error', 5000);
     } finally {
       elements.btnAiGenerate.disabled = false;
       if (icon) icon.classList.remove('spinning');
@@ -782,7 +891,7 @@ Do not write markdown wrappers (e.g. do NOT include \`\`\`json or \`\`\`). Outpu
     const example_sentence_en = elements.vocabSentenceEn.value.trim();
 
     if (!main_word_input || !translation) {
-      alert('Word 1 and Vietnamese Translation are required.');
+      showToast('Word 1 and Vietnamese Translation are required.', 'warning');
       return;
     }
 
@@ -810,15 +919,16 @@ Do not write markdown wrappers (e.g. do NOT include \`\`\`json or \`\`\`). Outpu
       
       if (result && result.success) {
         logToConsole(document.getElementById('ai-assistant-output'), 'Vocabulary saved successfully!', 'success');
+        showToast('Vocabulary saved successfully!', 'success');
         resetForm();
         await updateAppStats();
         await loadRecentVocab();
       } else {
-        alert(`Failed to save vocabulary: ${result?.error || 'Duplicate word error'}`);
+        showToast(`Failed to save: ${result?.error || 'Duplicate word error'}`, 'error');
       }
     } catch (err) {
       console.error(err);
-      alert(`Failed to save vocabulary: ${err.message || err || 'Duplicate word error'}`);
+      showToast(`Failed to save: ${err.message || 'Duplicate word error'}`, 'error');
     }
   });
 }
@@ -894,8 +1004,16 @@ async function loadLibraryVocab() {
   elements.libraryVocabList.innerHTML = '';
   if (list.length === 0) {
     elements.libraryVocabList.innerHTML = `
-      <tr class="empty-state">
-        <td colspan="6">No vocabulary items found.</td>
+      <tr>
+        <td colspan="6">
+          <div class="empty-state-enhanced">
+            <div class="empty-icon">
+              <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.602 10.602z" /></svg>
+            </div>
+            <h4>No results found</h4>
+            <p>Try a different search term or add new vocabulary.</p>
+          </div>
+        </td>
       </tr>
     `;
     return;
@@ -1015,14 +1133,22 @@ function editVocab(v) {
 }
 
 async function deleteVocab(id) {
-  if (confirm('Are you sure you want to delete this vocabulary item?')) {
-    const success = await window.api.deleteVocab(id);
-    if (success) {
-      await updateAppStats();
-      await loadLibraryVocab();
-    } else {
-      alert('Delete failed.');
-    }
+  // Use a custom confirm-style toast instead of native confirm
+  const confirmed = await new Promise(resolve => {
+    const t = showToast('Delete this vocabulary item? Click again to confirm.', 'warning', 5000);
+    if (!t) { resolve(false); return; }
+    t.style.cursor = 'pointer';
+    t.addEventListener('click', () => { resolve(true); t.remove(); }, { once: true });
+    setTimeout(() => resolve(false), 5100);
+  });
+  if (!confirmed) return;
+  const success = await window.api.deleteVocab(id);
+  if (success) {
+    showToast('Vocabulary deleted.', 'info');
+    await updateAppStats();
+    await loadLibraryVocab();
+  } else {
+    showToast('Delete failed. Please try again.', 'error');
   }
 }
 
@@ -1083,7 +1209,7 @@ function setupReviewHandlers() {
 async function startReviewSession() {
   activeReviewQueue = await window.api.dueVocab();
   if (activeReviewQueue.length === 0) {
-    alert('No due vocabulary items to review!');
+    showToast('No due vocabulary items to review! Come back later.', 'info');
     return;
   }
   
@@ -1589,6 +1715,22 @@ function showReviewComplete() {
   
   // Update study streak daily trigger
   updateActiveStreak();
+  
+  // Update daily goal progress
+  const today = new Date().toDateString();
+  const prevDate = localStorage.getItem('daily-reviewed-date');
+  let dailyCount = (prevDate === today) ? parseInt(localStorage.getItem('daily-reviewed-today') || '0') : 0;
+  dailyCount += sessionStats.reviewed;
+  localStorage.setItem('daily-reviewed-today', dailyCount.toString());
+  localStorage.setItem('daily-reviewed-date', today);
+  
+  const goalTarget = parseInt(localStorage.getItem('daily-goal-target') || '10');
+  if (dailyCount >= goalTarget) {
+    showToast(`🎉 Daily goal reached! ${dailyCount}/${goalTarget} words reviewed today.`, 'success', 5000);
+  } else {
+    showToast(`Session done! ${dailyCount}/${goalTarget} daily goal progress.`, 'info', 4000);
+  }
+  updateGoalRing();
 }
 
 // --- BACKUP & EXPORT/IMPORT SERVICES ---
@@ -1616,9 +1758,9 @@ function setupBackupHandlers() {
       downloadAnchor.click();
       downloadAnchor.remove();
       
-      alert('Database exported successfully as JSON file.');
+      showToast('Database exported successfully as JSON file.', 'success');
     } catch (error) {
-      alert(`Export failed: ${error.message}`);
+      showToast(`Export failed: ${error.message}`, 'error');
     }
   });
 
@@ -1665,11 +1807,11 @@ function setupBackupHandlers() {
           }
         }
 
-        alert(`Database import completed! Successfully imported/updated ${successCount} words.`);
+        showToast(`Import completed! ${successCount} words imported successfully.`, 'success', 5000);
         await loadSettings();
         await updateAppStats();
       } catch (error) {
-        alert(`Import failed: ${error.message}`);
+        showToast(`Import failed: ${error.message}`, 'error');
       }
     };
     reader.readAsText(file);
@@ -1693,10 +1835,10 @@ function setupBackupHandlers() {
       await populateGroqModels(apiKey, model);
       
       updateGroqStatus(apiKey);
-      alert('AI integration settings saved.');
+      showToast('AI integration settings saved successfully!', 'success');
     } catch (err) {
       console.error("Failed to save AI settings to database:", err);
-      alert(`Failed to save settings: ${err.message}`);
+      showToast(`Failed to save settings: ${err.message}`, 'error');
     }
   });
 
