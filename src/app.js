@@ -105,6 +105,7 @@ const elements = {
   vocabTranslation: document.getElementById('vocab-translation'),
   vocabSentenceVi: document.getElementById('vocab-sentence-vi'),
   vocabSentenceEn: document.getElementById('vocab-sentence-en'),
+  vocabLevel: document.getElementById('vocab-level'),
   btnAiGenerate: document.getElementById('btn-ai-generate'),
   btnClearForm: document.getElementById('btn-clear-form'),
   aiAssistantOutput: document.getElementById('ai-assistant-output'),
@@ -702,12 +703,13 @@ function setupFormHandlers() {
     const relatedArr = relatedWordsStr ? relatedWordsStr.split(',').map(s => s.trim()).filter(s => s.length > 0) : [];
     
     const systemPrompt = `You are a helpful and precise English vocabulary builder. You generate structured dictionary details.`;
+    const level = elements.vocabLevel ? elements.vocabLevel.value : 'B1';
     const userPrompt = `
 Generate details for combining the English words: "${mainWord}" and "${relatedArr.length > 0 ? relatedArr.join(', ') : 'none'}".
 Provide:
 1. IPA (International Phonetic Alphabet) pronunciation for both words separated by & (e.g. /word1/ & /word2/).
 2. Individual Vietnamese meanings for the words separated by & (e.g. meaning1 & meaning2). IMPORTANT: Do NOT include the English words themselves in the translation text.
-3. A creative, natural English sentence demonstrating the use of BOTH words in the same context.
+3. A creative, natural English sentence demonstrating the use of BOTH words in the same context. The sentence MUST be targeted at CEFR level ${level}.
 4. A pure Vietnamese translation of that English sentence. IMPORTANT: Do NOT mix or inject the English words into the Vietnamese sentence.
 
 You MUST respond strictly with a valid JSON object in this format:
