@@ -141,7 +141,7 @@ const elements = {
   btnAudioS1: document.getElementById('review-audio-btn-s1'),
   
   // S2 Related
-  reviewS2MainWord: document.getElementById('review-s2-main-word'),
+  reviewS2Ipa: document.getElementById('review-s2-ipa'),
   reviewS2Translation: document.getElementById('review-s2-translation'),
   reviewS2Input: document.getElementById('review-s2-input'),
   reviewS2Feedback: document.getElementById('review-s2-feedback'),
@@ -702,15 +702,15 @@ function setupFormHandlers() {
     const userPrompt = `
 Generate details for combining the English words: "${mainWord}" and "${relatedArr.length > 0 ? relatedArr.join(', ') : 'none'}".
 Provide:
-1. IPA (International Phonetic Alphabet) pronunciation for both words (e.g. /word1/ & /word2/).
-2. A combined Vietnamese translation or individual meanings for the words.
+1. IPA (International Phonetic Alphabet) pronunciation for both words separated by & (e.g. /word1/ & /word2/).
+2. Individual Vietnamese meanings for the words separated by & (e.g. meaning1 & meaning2). IMPORTANT: Do NOT include the English words themselves in the translation text.
 3. A creative, natural Vietnamese sentence demonstrating the use of BOTH words in the same context.
 4. The English translation of that sentence.
 
 You MUST respond strictly with a valid JSON object in this format:
 {
   "ipa": "/.../ & /.../",
-  "translation": "Vietnamese meaning(s)",
+  "translation": "meaning of word 1 & meaning of word 2",
   "example_sentence_vi": "Vietnamese example sentence containing both words",
   "example_sentence_en": "English translation of the example sentence"
 }
@@ -1123,8 +1123,11 @@ function transitionToStage(stageNum) {
     elements.btnS1Next.classList.add('hide');
     
     // Load prompt
-    elements.reviewIpaPrompt.textContent = vocab.ipa || '[No IPA]';
-    elements.reviewTranslationPrompt.textContent = vocab.translation;
+    const ipaParts = (vocab.ipa || '').split('&').map(s => s.trim());
+    const transParts = (vocab.translation || '').split('&').map(s => s.trim());
+    
+    elements.reviewIpaPrompt.textContent = ipaParts[0] || vocab.ipa || '[No IPA]';
+    elements.reviewTranslationPrompt.textContent = transParts[0] || vocab.translation;
     
     const parts = vocab.word.split('&').map(s => s.trim());
     const word1 = parts[0];
@@ -1152,8 +1155,11 @@ function transitionToStage(stageNum) {
     elements.btnS2Next.classList.add('hide');
     
     // Load prompt
-    elements.reviewS2MainWord.textContent = vocab.main_word;
-    elements.reviewS2Translation.textContent = vocab.translation;
+    const ipaParts = (vocab.ipa || '').split('&').map(s => s.trim());
+    const transParts = (vocab.translation || '').split('&').map(s => s.trim());
+    
+    elements.reviewS2Ipa.textContent = ipaParts.length > 1 ? ipaParts.slice(1).join(' & ') : vocab.ipa || '[No IPA]';
+    elements.reviewS2Translation.textContent = transParts.length > 1 ? transParts.slice(1).join(' & ') : vocab.translation;
     
     setTimeout(() => elements.reviewS2Input.focus(), 100);
     
