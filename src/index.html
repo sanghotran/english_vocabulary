@@ -8,6 +8,9 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css">
+  <script>
+    document.documentElement.setAttribute('data-theme', localStorage.getItem('ui-theme') || 'dark');
+  </script>
 </head>
 <body>
   <div class="app-container">
@@ -69,9 +72,16 @@
       <!-- Top Header -->
       <header class="top-header">
         <h1 id="page-title">Dashboard</h1>
-        <div id="api-status-indicator" class="api-status-badge">
-          <span class="indicator-dot"></span>
-          <span id="api-status-text">Groq AI Offline</span>
+        <div class="header-actions">
+          <button id="btn-theme-toggle" class="theme-toggle-btn" title="Toggle light/dark theme">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z" />
+            </svg>
+          </button>
+          <div id="api-status-indicator" class="api-status-badge">
+            <span class="indicator-dot"></span>
+            <span id="api-status-text">Groq AI Offline</span>
+          </div>
         </div>
       </header>
 
@@ -196,6 +206,32 @@
               </div>
             </div>
           </div>
+
+          <div class="dashboard-bottom-row mt-6" style="grid-template-columns: 1.3fr 1fr;">
+            <div class="activity-heatmap-panel glass-panel">
+              <div class="panel-header">
+                <h3>Study Activity</h3>
+                <span class="hint-label">Last 5 weeks</span>
+              </div>
+              <div id="activity-heatmap" class="heatmap-grid"></div>
+              <div class="heatmap-legend">
+                <span>Less</span>
+                <span class="heatmap-cell level-0"></span>
+                <span class="heatmap-cell level-1"></span>
+                <span class="heatmap-cell level-2"></span>
+                <span class="heatmap-cell level-3"></span>
+                <span class="heatmap-cell level-4"></span>
+                <span>More</span>
+              </div>
+            </div>
+
+            <div class="forecast-panel glass-panel">
+              <div class="panel-header">
+                <h3>Upcoming Reviews</h3>
+              </div>
+              <div id="due-forecast-list" class="forecast-list"></div>
+            </div>
+          </div>
         </section>
 
         <!-- ADD WORD TAB -->
@@ -278,20 +314,41 @@
               </form>
             </div>
 
-            <!-- AI Helper Log Console -->
-            <div class="help-panel glass-panel">
-              <h3>Assistant Logs</h3>
-              <div id="ai-assistant-output" class="console-box">
-                <div class="console-line system">Waiting for vocabulary input...</div>
+            <!-- Sidebar column: Live preview + AI Helper Log Console -->
+            <div class="add-word-side-col">
+
+              <!-- Live Flashcard Preview -->
+              <div class="flashcard-preview-panel glass-panel">
+                <div class="panel-header">
+                  <h3>Live Preview</h3>
+                  <span class="hint-label">Updates as you type</span>
+                </div>
+                <div class="mini-flashcard">
+                  <div class="mini-flashcard-ipa" id="preview-ipa">/ipa/</div>
+                  <div class="mini-flashcard-word" id="preview-main-word">Your word</div>
+                  <div class="mini-flashcard-translation" id="preview-translation">Vietnamese meaning</div>
+                  <div class="mini-flashcard-divider"></div>
+                  <div class="mini-flashcard-sentence" id="preview-sentence-en">English example sentence appears here...</div>
+                  <div class="mini-flashcard-sentence-vi" id="preview-sentence-vi">Câu ví dụ tiếng Việt sẽ hiện ở đây...</div>
+                </div>
               </div>
-              <div class="helper-tips">
-                <h4>Tips:</h4>
-                <ul>
-                  <li>Input two random English words you want to practice together (e.g. <i>"cat"</i> and <i>"keyboard"</i>).</li>
-                  <li>Clicking **Generate Details** will query the Llama model on Groq to craft a creative sentence containing both words.</li>
-                  <li>Ensure your **Groq API Key** is entered in the Settings tab first.</li>
-                </ul>
+
+              <!-- AI Helper Log Console -->
+              <div class="help-panel glass-panel">
+                <h3>Assistant Logs</h3>
+                <div id="ai-assistant-output" class="console-box">
+                  <div class="console-line system">Waiting for vocabulary input...</div>
+                </div>
+                <div class="helper-tips">
+                  <h4>Tips:</h4>
+                  <ul>
+                    <li>Input two random English words you want to practice together (e.g. <i>"cat"</i> and <i>"keyboard"</i>).</li>
+                    <li>Clicking **Generate Details** will query the Llama model on Groq to craft a creative sentence containing both words.</li>
+                    <li>Ensure your **Groq API Key** is entered in the Settings tab first.</li>
+                  </ul>
+                </div>
               </div>
+
             </div>
 
           </div>
@@ -314,11 +371,23 @@
                 <option value="due">Review Urgency</option>
                 <option value="mastery">Level of Mastery</option>
               </select>
+              <div class="view-toggle-group">
+                <button id="btn-library-view-table" class="view-toggle-btn active" title="Table view">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6.75h16.5M3.75 12h16.5m-16.5 5.25h16.5" />
+                  </svg>
+                </button>
+                <button id="btn-library-view-grid" class="view-toggle-btn" title="Grid view">
+                  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 016 3.75h2.25A2.25 2.25 0 0110.5 6v2.25a2.25 2.25 0 01-2.25 2.25H6a2.25 2.25 0 01-2.25-2.25V6zM3.75 15.75A2.25 2.25 0 016 13.5h2.25a2.25 2.25 0 012.25 2.25V18a2.25 2.25 0 01-2.25 2.25H6A2.25 2.25 0 013.75 18v-2.25zM13.5 6a2.25 2.25 0 012.25-2.25H18A2.25 2.25 0 0120.25 6v2.25A2.25 2.25 0 0118 10.5h-2.25a2.25 2.25 0 01-2.25-2.25V6zM13.5 15.75a2.25 2.25 0 012.25-2.25H18a2.25 2.25 0 012.25 2.25V18A2.25 2.25 0 0118 20.25h-2.25A2.25 2.25 0 0113.5 18v-2.25z" />
+                  </svg>
+                </button>
+              </div>
             </div>
           </div>
 
           <div class="library-grid-wrapper">
-            <div class="table-container glass-panel">
+            <div id="library-table-view" class="table-container glass-panel">
               <table class="vocab-table full-width">
                 <thead>
                   <tr>
@@ -338,6 +407,7 @@
                 </tbody>
               </table>
             </div>
+            <div id="library-card-grid" class="library-card-grid hide"></div>
           </div>
         </section>
 
@@ -373,9 +443,7 @@
                 <span>Card <span id="review-current-index">1</span> of <span id="review-total-count">10</span></span>
                 <span id="review-card-stage-name">Step 1: Write Word</span>
               </div>
-              <div class="progress-bar-container">
-                <div id="review-session-progress-bar" class="progress-bar" style="width: 10%"></div>
-              </div>
+              <div id="review-segment-track" class="segment-track"></div>
             </div>
 
             <!-- Review Card Arena -->

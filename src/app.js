@@ -109,11 +109,20 @@ const elements = {
   btnAiGenerate: document.getElementById('btn-ai-generate'),
   btnClearForm: document.getElementById('btn-clear-form'),
   aiAssistantOutput: document.getElementById('ai-assistant-output'),
+  previewIpa: document.getElementById('preview-ipa'),
+  previewMainWord: document.getElementById('preview-main-word'),
+  previewTranslation: document.getElementById('preview-translation'),
+  previewSentenceEn: document.getElementById('preview-sentence-en'),
+  previewSentenceVi: document.getElementById('preview-sentence-vi'),
   
   // Library
   librarySearch: document.getElementById('library-search-input'),
   librarySort: document.getElementById('library-sort-select'),
   libraryVocabList: document.getElementById('library-vocab-list'),
+  libraryTableView: document.getElementById('library-table-view'),
+  libraryCardGrid: document.getElementById('library-card-grid'),
+  btnLibraryViewTable: document.getElementById('btn-library-view-table'),
+  btnLibraryViewGrid: document.getElementById('btn-library-view-grid'),
   
   // Review Panel
   reviewStartState: document.getElementById('review-start-state'),
@@ -126,7 +135,7 @@ const elements = {
   reviewCurrentIndex: document.getElementById('review-current-index'),
   reviewTotalCount: document.getElementById('review-total-count'),
   reviewCardStageName: document.getElementById('review-card-stage-name'),
-  reviewProgressBar: document.getElementById('review-session-progress-bar'),
+  reviewSegmentTrack: document.getElementById('review-segment-track'),
   
   reviewStage1: document.getElementById('review-stage-1'),
   reviewStage2: document.getElementById('review-stage-2'),
@@ -192,6 +201,9 @@ const elements = {
 // Initialize Application
 document.addEventListener('DOMContentLoaded', async () => {
   try {
+    setupThemeToggle();
+    console.log("Initialization: Theme toggle setup complete.");
+
     setupNavigation();
     console.log("Initialization: Navigation setup complete.");
     
@@ -237,6 +249,29 @@ function logToConsole(element, message, type = 'system') {
   line.textContent = `[${time}] ${message}`;
   element.appendChild(line);
   element.scrollTop = element.scrollHeight;
+}
+
+// --- LIGHT / DARK THEME TOGGLE ---
+const SUN_ICON_PATH = 'M12 3v2.25m6.364.386-1.591 1.591M21 12h-2.25m-.386 6.364-1.591-1.591M12 18.75V21m-4.773-4.227-1.591 1.591M5.25 12H3m4.227-4.773L5.636 5.636M15.75 12a3.75 3.75 0 1 1-7.5 0 3.75 3.75 0 0 1 7.5 0Z';
+const MOON_ICON_PATH = 'M21.752 15.002A9.72 9.72 0 0 1 18 15.75c-5.385 0-9.75-4.365-9.75-9.75 0-1.33.266-2.597.748-3.752A9.753 9.753 0 0 0 3 11.25C3 16.635 7.365 21 12.75 21a9.753 9.753 0 0 0 9.002-5.998Z';
+
+function setupThemeToggle() {
+  const btn = document.getElementById('btn-theme-toggle');
+  if (!btn) return;
+  const iconPath = btn.querySelector('path');
+
+  const applyTheme = (theme) => {
+    document.documentElement.setAttribute('data-theme', theme);
+    if (iconPath) iconPath.setAttribute('d', theme === 'light' ? MOON_ICON_PATH : SUN_ICON_PATH);
+    localStorage.setItem('ui-theme', theme);
+  };
+
+  applyTheme(document.documentElement.getAttribute('data-theme') || 'dark');
+
+  btn.addEventListener('click', () => {
+    const current = document.documentElement.getAttribute('data-theme') === 'light' ? 'light' : 'dark';
+    applyTheme(current === 'light' ? 'dark' : 'light');
+  });
 }
 
 // --- TOAST NOTIFICATION SYSTEM ---
@@ -651,6 +686,112 @@ async function updateAppStats() {
   // Calculate Streak based on study activity / settings
   const streak = await calculateStreak(vocabList);
   elements.statStreak.textContent = `${streak} day${streak !== 1 ? 's' : ''}`;
+
+  renderActivityHeatmap();
+  renderDueForecast(vocabList);
+}
+
+// --- ACTIVITY HEATMAP (last 5 weeks, GitHub-style) ---
+function getReviewHistory() {
+  try {
+    return JSON.parse(localStorage.getItem('daily-review-history') || '{}');
+  } catch (err) {
+    return {};
+  }
+}
+
+function recordReviewActivity(count) {
+  const history = getReviewHistory();
+  const todayKey = new Date().toISOString().slice(0, 10);
+  history[todayKey] = (history[todayKey] || 0) + count;
+  localStorage.setItem('daily-review-history', JSON.stringify(history));
+}
+
+function renderActivityHeatmap() {
+  const container = document.getElementById('activity-heatmap');
+  if (!container) return;
+
+  const history = getReviewHistory();
+  const today = new Date();
+  // Pad back to the most recent Sunday so weeks align into clean columns.
+  const daysBack = 34 + today.getDay();
+  const start = new Date(today);
+  start.setDate(start.getDate() - daysBack);
+
+  container.innerHTML = '';
+  for (let i = 0; i <= daysBack; i++) {
+    const d = new Date(start);
+    d.setDate(d.getDate() + i);
+    const key = d.toISOString().slice(0, 10);
+    const count = history[key] || 0;
+
+    let level = 0;
+    if (count >= 10) level = 4;
+    else if (count >= 6) level = 3;
+    else if (count >= 3) level = 2;
+    else if (count >= 1) level = 1;
+
+    const cell = document.createElement('div');
+    cell.className = `heatmap-cell level-${level}`;
+    cell.title = `${d.toLocaleDateString()}: ${count} review${count !== 1 ? 's' : ''}`;
+    container.appendChild(cell);
+  }
+}
+
+// --- UPCOMING REVIEW FORECAST (next 7 days) ---
+function computeDueForecast(vocabList) {
+  const buckets = new Array(7).fill(0);
+  const startOfToday = new Date();
+  startOfToday.setHours(0, 0, 0, 0);
+
+  vocabList.forEach(v => {
+    const items = (v.related_details && v.related_details.length > 0)
+      ? v.related_details
+      : [{ next_review: v.next_review }];
+
+    items.forEach(rd => {
+      if (!rd.next_review) return;
+      const d = new Date(rd.next_review);
+      if (isNaN(d.getTime())) return;
+      const dayStart = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+      const dayDiff = Math.round((dayStart - startOfToday) / 86400000);
+
+      if (dayDiff <= 0) buckets[0]++;
+      else if (dayDiff <= 6) buckets[dayDiff]++;
+    });
+  });
+
+  return buckets;
+}
+
+function renderDueForecast(vocabList) {
+  const container = document.getElementById('due-forecast-list');
+  if (!container) return;
+
+  const buckets = computeDueForecast(vocabList);
+  const maxVal = Math.max(1, ...buckets);
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const today = new Date();
+
+  container.innerHTML = '';
+  buckets.forEach((count, i) => {
+    const d = new Date(today);
+    d.setDate(d.getDate() + i);
+    let label = dayNames[d.getDay()];
+    if (i === 0) label = 'Today';
+    else if (i === 1) label = 'Tomorrow';
+
+    const percent = Math.round((count / maxVal) * 100);
+
+    const row = document.createElement('div');
+    row.className = `forecast-row${i === 0 ? ' today' : ''}`;
+    row.innerHTML = `
+      <span class="forecast-day-label">${label}</span>
+      <div class="forecast-bar-track"><div class="forecast-bar-fill" style="width:${percent}%"></div></div>
+      <span class="forecast-count">${count}</span>
+    `;
+    container.appendChild(row);
+  });
 }
 
 async function calculateStreak() {
@@ -774,8 +915,34 @@ async function loadRecentVocab() {
   });
 }
 
+// --- LIVE FLASHCARD PREVIEW (Add Word tab) ---
+function setPreviewText(el, value, placeholder) {
+  const trimmed = (value || '').trim();
+  el.textContent = trimmed || placeholder;
+  el.classList.toggle('is-placeholder', !trimmed);
+}
+
+function updateLivePreview() {
+  if (!elements.previewMainWord) return;
+
+  const mainWord = elements.vocabMainWord.value.trim();
+  const related = elements.vocabRelatedWords.value.trim();
+  const combinedWord = related ? `${mainWord} & ${related}` : mainWord;
+
+  setPreviewText(elements.previewMainWord, combinedWord, 'Your word');
+  setPreviewText(elements.previewIpa, elements.vocabIpa.value, '/ipa/');
+  setPreviewText(elements.previewTranslation, elements.vocabTranslation.value, 'Vietnamese meaning');
+  setPreviewText(elements.previewSentenceEn, elements.vocabSentenceEn.value, 'English example sentence appears here...');
+  setPreviewText(elements.previewSentenceVi, elements.vocabSentenceVi.value, 'Câu ví dụ tiếng Việt sẽ hiện ở đây...');
+}
+
 // --- FORM HANDLERS (ADD/EDIT VOCABULARY) ---
 function setupFormHandlers() {
+  // Live preview updates
+  [elements.vocabMainWord, elements.vocabRelatedWords, elements.vocabIpa, elements.vocabTranslation, elements.vocabSentenceEn, elements.vocabSentenceVi]
+    .forEach(el => el.addEventListener('input', updateLivePreview));
+  updateLivePreview();
+
   // Clear button
   elements.btnClearForm.addEventListener('click', () => {
     resetForm();
@@ -806,7 +973,11 @@ function setupFormHandlers() {
     elements.btnAiGenerate.disabled = true;
     const icon = elements.btnAiGenerate.querySelector('.rotate-spin');
     if (icon) icon.classList.add('spinning');
-    
+
+    // Show skeleton shimmer on the fields that are about to be filled
+    const aiFields = [elements.vocabIpa, elements.vocabTranslation, elements.vocabSentenceVi, elements.vocabSentenceEn];
+    aiFields.forEach(f => { f.disabled = true; f.classList.add('field-loading'); });
+
     logToConsole(elements.aiAssistantOutput, `Generating details for "${mainWord}" using Groq (${model})...`, 'system');
 
     const relatedArr = relatedWordsStr ? relatedWordsStr.split(',').map(s => s.trim()).filter(s => s.length > 0) : [];
@@ -863,6 +1034,7 @@ Do not write markdown wrappers (e.g. do NOT include \`\`\`json or \`\`\`). Outpu
       elements.vocabTranslation.value = parsedData.translation || '';
       elements.vocabSentenceVi.value = parsedData.example_sentence_vi || '';
       elements.vocabSentenceEn.value = parsedData.example_sentence_en || '';
+      updateLivePreview();
 
       logToConsole(elements.aiAssistantOutput, `Successfully generated details for "${mainWord}"!`, 'success');
       logToConsole(elements.aiAssistantOutput, `IPA: ${parsedData.ipa}`, 'ai');
@@ -875,6 +1047,7 @@ Do not write markdown wrappers (e.g. do NOT include \`\`\`json or \`\`\`). Outpu
     } finally {
       elements.btnAiGenerate.disabled = false;
       if (icon) icon.classList.remove('spinning');
+      aiFields.forEach(f => { f.disabled = false; f.classList.remove('field-loading'); });
     }
   });
 
@@ -947,12 +1120,44 @@ function resetForm() {
     </svg>
     Save Vocabulary
   `;
+  updateLivePreview();
 }
 
 // --- LIBRARY HANDLERS ---
+let libraryViewMode = localStorage.getItem('library-view-mode') || 'table';
+let libraryLastList = [];
+
 function setupLibraryHandlers() {
   elements.librarySearch.addEventListener('input', loadLibraryVocab);
   elements.librarySort.addEventListener('change', loadLibraryVocab);
+
+  elements.btnLibraryViewTable.addEventListener('click', () => setLibraryViewMode('table'));
+  elements.btnLibraryViewGrid.addEventListener('click', () => setLibraryViewMode('grid'));
+
+  applyLibraryViewMode();
+}
+
+function setLibraryViewMode(mode) {
+  libraryViewMode = mode;
+  localStorage.setItem('library-view-mode', mode);
+  applyLibraryViewMode();
+  renderActiveLibraryView();
+}
+
+function applyLibraryViewMode() {
+  const isGrid = libraryViewMode === 'grid';
+  elements.btnLibraryViewTable.classList.toggle('active', !isGrid);
+  elements.btnLibraryViewGrid.classList.toggle('active', isGrid);
+  elements.libraryTableView.classList.toggle('hide', isGrid);
+  elements.libraryCardGrid.classList.toggle('hide', !isGrid);
+}
+
+function renderActiveLibraryView() {
+  if (libraryViewMode === 'grid') {
+    renderLibraryGrid(libraryLastList);
+  } else {
+    renderLibraryTable(libraryLastList);
+  }
 }
 
 async function loadLibraryVocab() {
@@ -1000,7 +1205,11 @@ async function loadLibraryVocab() {
     // 'recent' -> sorted by ID/created_at descending by default from IPC
   }
 
-  // Render Table
+  libraryLastList = list;
+  renderActiveLibraryView();
+}
+
+function renderLibraryTable(list) {
   elements.libraryVocabList.innerHTML = '';
   if (list.length === 0) {
     elements.libraryVocabList.innerHTML = `
@@ -1109,6 +1318,67 @@ async function loadLibraryVocab() {
   });
 }
 
+// Words are considered "mastered" once their SM-2 interval reaches 21 days (same threshold used in dashboard stats).
+const MASTERY_INTERVAL_DAYS = 21;
+
+function renderLibraryGrid(list) {
+  const grid = elements.libraryCardGrid;
+  grid.innerHTML = '';
+
+  if (list.length === 0) {
+    grid.innerHTML = `
+      <div class="empty-state-enhanced" style="grid-column: 1 / -1;">
+        <div class="empty-icon">
+          <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="1.5"><path stroke-linecap="round" stroke-linejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.602 10.602z" /></svg>
+        </div>
+        <h4>No results found</h4>
+        <p>Try a different search term or add new vocabulary.</p>
+      </div>
+    `;
+    return;
+  }
+
+  list.forEach(v => {
+    const card = document.createElement('div');
+    card.className = 'vocab-card';
+
+    const items = (v.related_details && v.related_details.length > 0) ? v.related_details : [{ interval: v.interval || 0, next_review: v.next_review }];
+    const isDue = items.some(rd => new Date(rd.next_review) <= new Date());
+    if (isDue) card.classList.add('vocab-row-due');
+
+    const avgInterval = items.reduce((sum, rd) => sum + (rd.interval || 0), 0) / items.length;
+    const masteryPercent = Math.min(100, Math.round((avgInterval / MASTERY_INTERVAL_DAYS) * 100));
+
+    const tagsHtml = (v.related_words || []).map(rw => `<span class="tag">${escapeHtml(rw)}</span>`).join('');
+
+    card.innerHTML = `
+      <div class="vocab-card-header">
+        <span class="vocab-card-word">${escapeHtml(v.main_word)}</span>
+        <span class="vocab-card-ipa">${escapeHtml(v.ipa || '')}</span>
+      </div>
+      <div class="vocab-card-translation">${escapeHtml(v.translation)}</div>
+      ${v.example_sentence_en ? `<div class="vocab-card-sentence">${escapeHtml(v.example_sentence_en)}</div>` : ''}
+      ${tagsHtml ? `<div class="vocab-card-tags">${tagsHtml}</div>` : ''}
+      <div class="vocab-card-mastery">
+        <div class="vocab-card-mastery-label"><span>Mastery</span><span>${masteryPercent}%</span></div>
+        <div class="vocab-card-mastery-track"><div class="vocab-card-mastery-fill" style="width:${masteryPercent}%"></div></div>
+      </div>
+      <div class="vocab-card-footer">
+        ${isDue ? '<span class="vocab-card-due-tag">Due now</span>' : '<span class="text-muted" style="font-size:11px;">Not due</span>'}
+        <div class="row-action-buttons">
+          <button class="btn secondary p-2 btn-edit" data-id="${v.id}" title="Edit">Edit</button>
+          <button class="btn danger-text p-2 btn-delete" data-id="${v.id}" title="Delete">Delete</button>
+        </div>
+      </div>
+    `;
+
+    card.querySelector('.btn-edit').addEventListener('click', () => editVocab(v));
+    card.querySelector('.btn-delete').addEventListener('click', () => deleteVocab(v.id));
+
+    grid.appendChild(card);
+  });
+}
+
 function editVocab(v) {
   elements.vocabId.value = v.id;
 
@@ -1128,6 +1398,7 @@ function editVocab(v) {
     </svg>
     Update Vocabulary
   `;
+  updateLivePreview();
 
   switchTab('add-word');
 }
@@ -1223,22 +1494,43 @@ async function startReviewSession() {
   
   elements.reviewStartState.classList.add('hide');
   elements.reviewActiveState.classList.remove('hide');
-  
+
   elements.reviewLogsBox.innerHTML = '';
   logToConsole(elements.reviewLogsBox, `Reviewing ${activeReviewQueue.length} due items.`, 'system');
 
+  buildSegmentTrack();
   loadActiveCard();
+}
+
+function buildSegmentTrack() {
+  const track = elements.reviewSegmentTrack;
+  if (!track) return;
+  track.innerHTML = '';
+  activeReviewQueue.forEach((_, i) => {
+    const seg = document.createElement('div');
+    seg.className = 'segment';
+    seg.id = `review-segment-${i}`;
+    track.appendChild(seg);
+  });
+}
+
+function updateSegmentTrack() {
+  activeReviewQueue.forEach((_, i) => {
+    const seg = document.getElementById(`review-segment-${i}`);
+    if (!seg) return;
+    seg.classList.remove('done', 'current');
+    if (i < currentReviewIndex) seg.classList.add('done');
+    else if (i === currentReviewIndex) seg.classList.add('current');
+  });
 }
 
 function loadActiveCard() {
   const vocab = activeReviewQueue[currentReviewIndex];
-  
-  // Update overall progress bar
+
+  // Update overall progress info
   elements.reviewCurrentIndex.textContent = currentReviewIndex + 1;
   elements.reviewTotalCount.textContent = activeReviewQueue.length;
-  
-  const progressPercent = ((currentReviewIndex) / activeReviewQueue.length) * 100;
-  elements.reviewProgressBar.style.width = `${progressPercent}%`;
+  updateSegmentTrack();
 
   logToConsole(elements.reviewLogsBox, `Loading card: "${vocab.word.charAt(0)}..."`, 'system');
 
@@ -1372,11 +1664,13 @@ function checkSpellingStage() {
   
   const feedbackDiv = elements.reviewS1Feedback;
   feedbackDiv.classList.remove('hide');
-  
+  feedbackDiv.classList.remove('correct-anim', 'incorrect-anim');
+
   // Voice confirmation
   speak(correct);
-  
+
   if (userTyped === correct) {
+    feedbackDiv.classList.add('correct-anim');
     sessionStats.spellingCorrect++;
     logToConsole(elements.reviewLogsBox, `Spelling correct: "${correct}"`, 'success');
     feedbackDiv.innerHTML = `
@@ -1391,6 +1685,7 @@ function checkSpellingStage() {
     // Attach marker to temporary array
     vocab.spellingFailed = false;
   } else {
+    feedbackDiv.classList.add('incorrect-anim');
     logToConsole(elements.reviewLogsBox, `Spelling incorrect for "${vocab.word}" (Typed: "${userTyped}")`, 'error');
     feedbackDiv.innerHTML = `
       <div class="feedback-status incorrect">
@@ -1418,10 +1713,11 @@ function checkRelatedStage() {
   
   const feedbackDiv = elements.reviewS2Feedback;
   feedbackDiv.classList.remove('hide');
-  
+  feedbackDiv.classList.remove('correct-anim', 'incorrect-anim');
+
   const parts = vocab.word.split('&').map(s => s.trim().toLowerCase());
   const word2 = parts.length > 1 ? parts.slice(1).join(' & ') : '';
-  
+
   if (!word2) {
     feedbackDiv.innerHTML = `
       <div class="feedback-status correct">No Word 2 stored for this card.</div>
@@ -1431,11 +1727,12 @@ function checkRelatedStage() {
     elements.btnS2Next.focus();
     return;
   }
-  
+
   const isCorrect = userTyped === word2;
   vocab.relatedCountCorrect = isCorrect ? 1 : 0;
   vocab.relatedTotal = 1;
-  
+  feedbackDiv.classList.add(isCorrect ? 'correct-anim' : 'incorrect-anim');
+
   if (isCorrect) {
     logToConsole(elements.reviewLogsBox, `Word 2 recalled: "${word2}"`, 'success');
     feedbackDiv.innerHTML = `
@@ -1551,7 +1848,9 @@ function renderAIResults(vocab, userTranslation, result) {
   
   const feedbackDiv = elements.reviewS3Feedback;
   feedbackDiv.innerHTML = '';
-  
+  feedbackDiv.classList.remove('correct-anim', 'incorrect-anim');
+  feedbackDiv.classList.add(result.is_correct ? 'correct-anim' : 'incorrect-anim');
+
   const statusClass = result.is_correct ? 'correct' : 'incorrect';
   const statusIcon = result.is_correct 
     ? `<svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5"><path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" /></svg>`
@@ -1619,6 +1918,8 @@ function setupSelfGradingFallback(vocab, userTranslation) {
 
 function finishFallbackGrading(wasCorrect) {
   logToConsole(elements.reviewLogsBox, `Self Evaluation: ${wasCorrect ? 'PASSED' : 'FAILED'}`, wasCorrect ? 'success' : 'error');
+  elements.reviewS3Feedback.classList.remove('correct-anim', 'incorrect-anim');
+  elements.reviewS3Feedback.classList.add(wasCorrect ? 'correct-anim' : 'incorrect-anim');
   elements.reviewS3Feedback.innerHTML = `
     <div class="feedback-status ${wasCorrect ? 'correct' : 'incorrect'}">
       Graded: ${wasCorrect ? 'Correct' : 'Incorrect'}
@@ -1715,7 +2016,8 @@ function showReviewComplete() {
   
   // Update study streak daily trigger
   updateActiveStreak();
-  
+  recordReviewActivity(sessionStats.reviewed);
+
   // Update daily goal progress
   const today = new Date().toDateString();
   const prevDate = localStorage.getItem('daily-reviewed-date');
