@@ -141,6 +141,7 @@ const elements = {
   btnAudioS1: document.getElementById('review-audio-btn-s1'),
   
   // S2 Related
+  btnAudioS2: document.getElementById('review-audio-btn-s2'),
   reviewS2Ipa: document.getElementById('review-s2-ipa'),
   reviewS2Translation: document.getElementById('review-s2-translation'),
   reviewS2Input: document.getElementById('review-s2-input'),
@@ -510,6 +511,7 @@ async function switchTab(tabName) {
 
 // --- APP STATISTICS & DASHBOARD ---
 async function updateAppStats() {
+  if (!window.api) return;
   const vocabList = await window.api.listVocab();
   const dueVocab = await window.api.dueVocab();
   
@@ -549,7 +551,7 @@ async function updateAppStats() {
   elements.statStreak.textContent = `${streak} day${streak !== 1 ? 's' : ''}`;
 }
 
-async function calculateStreak(vocabList) {
+async function calculateStreak() {
   // Look at created_at/next_review history to determine consecutive study days (simplified to 0 or 1 for demo, or mock)
   // Let's implement a simple streak algorithm by checking local storage for daily active timestamps
   const streakKey = 'study-streak-count';
@@ -595,6 +597,7 @@ function updateActiveStreak() {
 }
 
 async function loadRecentVocab() {
+  if (!window.api) return;
   const vocabList = await window.api.listVocab();
   // Get first 5
   const recent = vocabList.slice(0, 5);
@@ -841,6 +844,7 @@ function setupLibraryHandlers() {
 }
 
 async function loadLibraryVocab() {
+  if (!window.api) return;
   let list = await window.api.listVocab();
   const searchVal = elements.librarySearch.value.toLowerCase().trim();
   const sortBy = elements.librarySort.value;
@@ -987,8 +991,12 @@ async function loadLibraryVocab() {
 
 function editVocab(v) {
   elements.vocabId.value = v.id;
-  elements.vocabMainWord.value = v.main_word;
-  elements.vocabRelatedWords.value = (v.related_words || []).join(', ');
+
+  // main_word được lưu dạng "word1 & word2", cần tách lại để hiển thị đúng
+  const mainWordParts = (v.main_word || '').split('&').map(s => s.trim());
+  elements.vocabMainWord.value = mainWordParts[0] || v.main_word;
+  elements.vocabRelatedWords.value = mainWordParts.slice(1).join(', ');
+
   elements.vocabIpa.value = v.ipa || '';
   elements.vocabTranslation.value = v.translation;
   elements.vocabSentenceVi.value = v.example_sentence_vi || '';
@@ -1032,12 +1040,22 @@ function setupReviewHandlers() {
   elements.dashboardStartReview.addEventListener('click', () => switchTab('review'));
   elements.btnStartReviewSession.addEventListener('click', startReviewSession);
   
-  // Audio testing inside Review Stage 1
+  // Audio button - Review Stage 1: phát từ 1
   elements.btnAudioS1.addEventListener('click', () => {
     const activeWord = activeReviewQueue[currentReviewIndex];
     if (activeWord) {
       const parts = activeWord.word.split('&').map(s => s.trim());
       speak(parts[0]);
+    }
+  });
+
+  // Audio button - Review Stage 2: phát từ 2
+  elements.btnAudioS2.addEventListener('click', () => {
+    const activeWord = activeReviewQueue[currentReviewIndex];
+    if (activeWord) {
+      const parts = activeWord.word.split('&').map(s => s.trim());
+      const word2 = parts.length > 1 ? parts[1] : '';
+      if (word2) speak(word2);
     }
   });
 
@@ -1163,7 +1181,15 @@ function transitionToStage(stageNum) {
     elements.reviewS2Ipa.textContent = ipaParts.length > 1 ? ipaParts.slice(1).join(' & ') : vocab.ipa || '[No IPA]';
     elements.reviewS2Translation.textContent = transParts.length > 1 ? transParts.slice(1).join(' & ') : vocab.translation;
     
-    setTimeout(() => elements.reviewS2Input.focus(), 100);
+    setTimeout(() => {
+      elements.reviewS2Input.focus();
+      // Auto-play từ 2 nếu bật auto-audio
+      if (elements.reviewAutoAudio.checked) {
+        const parts = vocab.word.split('&').map(s => s.trim());
+        const word2 = parts.length > 1 ? parts[1] : '';
+        if (word2) speak(word2);
+      }
+    }, 100);
     
   } else if (stageNum === 3) {
     elements.reviewCardStageName.textContent = 'Step 3: Translate Sentence';
@@ -1568,8 +1594,6 @@ function setupBackupHandlers() {
   elements.btnExportDb.addEventListener('click', async () => {
     try {
       const vocabList = await window.api.listVocab();
-      const settings = [];
-      
       const groqKey = await window.api.getSetting('groq-key');
       const groqModel = await window.api.getSetting('groq-model');
       
