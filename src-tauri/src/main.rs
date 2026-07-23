@@ -258,9 +258,9 @@ fn save_vocab(state: tauri::State<'_, DbState>, vocab: Vocabulary) -> Result<Sav
         new_related_words.push(vocab.main_word.trim().to_string());
     }
 
-    let mut existing_map = std::collections::HashMap::new();
+    let mut existing_rows_list: Vec<(i64, String)> = Vec::new();
     {
-        let mut existing_stmt = match tx.prepare("SELECT id, word FROM related_words WHERE vocabulary_id = ?1") {
+        let mut existing_stmt = match tx.prepare("SELECT id, word FROM related_words WHERE vocabulary_id = ?1 ORDER BY id ASC") {
             Ok(s) => s,
             Err(e) => return Ok(SaveResponse { success: false, id: None, error: Some(format!("Database error: {}", e)) })
         };
@@ -271,27 +271,52 @@ fn save_vocab(state: tauri::State<'_, DbState>, vocab: Vocabulary) -> Result<Sav
             Err(e) => return Ok(SaveResponse { success: false, id: None, error: Some(format!("Database error: {}", e)) })
         };
         for row in existing_rows {
-            if let Ok((id, word)) = row {
-                existing_map.insert(word, id);
+            if let Ok(pair) = row {
+                existing_rows_list.push(pair);
             }
         }
     }
 
+    // Pass 1: keep rows whose word text is unchanged as-is, so their SM-2 schedule
+    // (interval/ease/repetitions/next_review) survives untouched.
+    let mut matched_ids = std::collections::HashSet::new();
+    let mut remaining_new: Vec<String> = Vec::new();
     for word in &new_related_words {
-        if !existing_map.contains_key(word) {
-            if let Err(e) = tx.execute(
-                "INSERT INTO related_words (vocabulary_id, word, interval, ease_factor, repetitions, next_review) 
-                 VALUES (?1, ?2, 1, 2.5, 0, datetime('now', 'localtime'))",
-                (vocab_id, word)
-            ) {
-                return Ok(SaveResponse { success: false, id: None, error: Some(format!("Database error: {}", e)) });
-            }
+        if let Some((id, _)) = existing_rows_list.iter().find(|(id, w)| w == word && !matched_ids.contains(id)) {
+            matched_ids.insert(*id);
         } else {
-            existing_map.remove(word);
+            remaining_new.push(word.clone());
+        }
+    }
+    let mut remaining_existing: Vec<(i64, String)> = existing_rows_list
+        .into_iter()
+        .filter(|(id, _)| !matched_ids.contains(id))
+        .collect();
+
+    // Pass 2: pair any leftover rows with leftover words positionally, updating the word text
+    // in place (instead of delete+insert) so edits like fixing a typo don't reset SM-2 progress.
+    let pair_count = remaining_existing.len().min(remaining_new.len());
+    for i in 0..pair_count {
+        let (id, _) = &remaining_existing[i];
+        let word = &remaining_new[i];
+        if let Err(e) = tx.execute("UPDATE related_words SET word = ?1 WHERE id = ?2", (word, id)) {
+            return Ok(SaveResponse { success: false, id: None, error: Some(format!("Database error: {}", e)) });
         }
     }
 
-    for (_, id) in existing_map {
+    // Any words beyond the paired-up rows are genuinely new: insert with a fresh schedule.
+    for word in &remaining_new[pair_count..] {
+        if let Err(e) = tx.execute(
+            "INSERT INTO related_words (vocabulary_id, word, interval, ease_factor, repetitions, next_review)
+             VALUES (?1, ?2, 1, 2.5, 0, datetime('now', 'localtime'))",
+            (vocab_id, word)
+        ) {
+            return Ok(SaveResponse { success: false, id: None, error: Some(format!("Database error: {}", e)) });
+        }
+    }
+
+    // Any rows beyond the paired-up words are no longer present: remove them.
+    for (id, _) in remaining_existing.split_off(pair_count) {
         if let Err(e) = tx.execute("DELETE FROM related_words WHERE id = ?1", [id]) {
             return Ok(SaveResponse { success: false, id: None, error: Some(format!("Database error: {}", e)) });
         }
