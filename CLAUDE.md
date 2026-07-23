@@ -180,3 +180,15 @@ rtk init --global       # Add RTK to ~/.claude/CLAUDE.md
 
 Overall average: **60-90% token reduction** on common development operations.
 <!-- /rtk-instructions -->
+
+## RTK Usage Rules
+
+### Always Do
+
+- **MUST prefix every shell command with `rtk`**, including inside `&&` chains — never call `git`, `npm`, `cargo`, `tsc`, `grep`, `find`, `ls`, `curl`, `gh`, etc. directly when an `rtk` equivalent exists.
+- **MUST use `rtk proxy <cmd>`** instead of bypassing `rtk` entirely when raw/unfiltered output is genuinely needed for debugging.
+
+### Never Do
+
+- NEVER run a bare command (e.g. `git status`, `npm run build`, `cargo test`) when `rtk` supports it — always use the `rtk`-prefixed form.
+- NEVER drop the `rtk` prefix mid-chain just because earlier commands in the same line already used it.

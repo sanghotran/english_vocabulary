@@ -2423,12 +2423,12 @@ function buildPracticeQuizQuestion(item, pool) {
   return { vocab: item.vocab, mode: 'quiz', promptText, options, correctAnswer };
 }
 
-function buildPracticeFillBlankQuestion(vocab) {
-  const word = getMainWordFirstPart(vocab);
-  const sentence = vocab.example_sentence_en;
+function buildPracticeFillBlankQuestion(item) {
+  const word = item.word;
+  const sentence = item.vocab.example_sentence_en;
   const regex = new RegExp('\\b' + escapeRegex(word) + '\\b', 'i');
   const blanked = sentence.replace(regex, '____');
-  return { vocab, mode: 'fill_blank', promptText: blanked, correctAnswer: word };
+  return { vocab: item.vocab, mode: 'fill_blank', promptText: blanked, correctAnswer: word };
 }
 
 function buildPracticeDictationQuestion(vocab) {
@@ -2476,12 +2476,15 @@ async function startPracticeSession() {
       return;
     }
   } else if (practiceMode === 'fill_blank') {
-    usablePool = vocabList.filter(v => {
-      if (!v.example_sentence_en) return false;
-      const word = getMainWordFirstPart(v);
-      if (!word) return false;
-      const regex = new RegExp('\\b' + escapeRegex(word) + '\\b', 'i');
-      return regex.test(v.example_sentence_en);
+    const seenFillWords = new Set();
+    usablePool = vocabList.flatMap(expandVocabToWordPairs).filter(p => {
+      if (!p.vocab.example_sentence_en) return false;
+      const wordKey = p.word.toLowerCase();
+      if (seenFillWords.has(wordKey)) return false;
+      const regex = new RegExp('\\b' + escapeRegex(p.word) + '\\b', 'i');
+      if (!regex.test(p.vocab.example_sentence_en)) return false;
+      seenFillWords.add(wordKey);
+      return true;
     });
     if (usablePool.length === 0) {
       elements.practiceStartHint.textContent = 'Chưa có câu ví dụ phù hợp để tạo bài Điền từ. Hãy thêm câu ví dụ tiếng Anh cho từ vựng trước.';
